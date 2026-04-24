@@ -1,46 +1,7 @@
 import streamlit as st
 import pandas as pd
-import sys
-import subprocess
-import os
-
-# ============================================
-# VERIFICAR E INSTALAR DEPENDÊNCIAS
-# ============================================
-def verificar_instalar_pacotes():
-    """Verifica se os pacotes necessários estão instalados"""
-    pacotes_faltando = []
-    
-    try:
-        import openpyxl
-    except ImportError:
-        pacotes_faltando.append('openpyxl')
-    
-    try:
-        import plotly
-    except ImportError:
-        pacotes_faltando.append('plotly')
-    
-    if pacotes_faltando:
-        st.warning(f"Pacotes faltando: {', '.join(pacotes_faltando)}")
-        st.info("Instalando pacotes automaticamente...")
-        
-        for pacote in pacotes_faltando:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", pacote])
-        
-        st.success("Pacotes instalados! Reiniciando...")
-        st.rerun()
-
-# Executar verificação
-verificar_instalar_pacotes()
-
-# Agora importar os pacotes
-import openpyxl
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-
-PLOTLY_AVAILABLE = True
+import json
+from datetime import datetime
 
 # ============================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -56,28 +17,17 @@ st.set_page_config(
 # SISTEMA DE AUTENTICAÇÃO
 # ============================================
 
-# Configuração de usuários
 USERS = {
-    "Juan": {
-        "password": "Ju@n1990",
-        "name": "Juan Carlos",
-        "role": "admin"
-    },
-    "Juan Carlos": {
-        "password": "Ju@n1990",
-        "name": "Juan Carlos",
-        "role": "admin"
-    }
+    "Juan": {"password": "Ju@n1990", "name": "Juan Carlos"},
+    "Juan Carlos": {"password": "Ju@n1990", "name": "Juan Carlos"}
 }
 
 def check_password(username, password):
-    """Verifica credenciais"""
     if username in USERS:
         return USERS[username]["password"] == password
     return False
 
 def login():
-    """Interface de login"""
     st.markdown("""
     <style>
     .login-container {
@@ -86,13 +36,7 @@ def login():
         padding: 40px;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 20px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
         color: white;
-    }
-    .login-container h1 {
-        text-align: center;
-        margin-bottom: 30px;
-        font-size: 2em;
     }
     .stButton > button {
         width: 100%;
@@ -100,510 +44,364 @@ def login():
         color: white;
         border: none;
         padding: 10px;
-        font-size: 16px;
         font-weight: bold;
-        border-radius: 10px;
-        transition: all 0.3s;
-    }
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 20px rgba(0,0,0,0.2);
     }
     </style>
     """, unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
-    
     with col2:
         st.markdown('<div class="login-container">', unsafe_allow_html=True)
-        st.markdown("<h1>💰 Controle Financeiro</h1>", unsafe_allow_html=True)
-        st.markdown("<h3 style='text-align: center'>Bem-vindo! Faça login</h3>", unsafe_allow_html=True)
-        st.markdown("---", unsafe_allow_html=True)
-        
-        username = st.text_input("👤 Usuário", placeholder="Digite seu usuário (Juan ou Juan Carlos)")
-        password = st.text_input("🔒 Senha", type="password", placeholder="Digite sua senha (Ju@n1990)")
-        
+        st.markdown("<h1 style='text-align:center'>💰 Controle Financeiro</h1>")
+        username = st.text_input("👤 Usuário")
+        password = st.text_input("🔒 Senha", type="password")
         if st.button("🔓 Entrar", use_container_width=True):
             if check_password(username, password):
                 st.session_state["authenticated"] = True
-                st.session_state["username"] = username
                 st.session_state["user_name"] = USERS[username]["name"]
                 st.rerun()
             else:
                 st.error("❌ Usuário ou senha incorretos!")
-        
-        st.markdown("---")
-        st.markdown("<p style='text-align: center; font-size: 12px'>Desenvolvido para controle financeiro pessoal</p>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-def logout():
-    """Logout do sistema"""
-    if st.sidebar.button("🚪 Sair do Sistema"):
-        for key in ["authenticated", "username", "user_name"]:
-            if key in st.session_state:
-                del st.session_state[key]
-        st.rerun()
-
-# Verificar autenticação
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
-# Se não estiver autenticado, mostrar login
 if not st.session_state["authenticated"]:
     login()
     st.stop()
 
 # ============================================
-# SIDEBAR - USUÁRIO LOGADO
+# DADOS EMBUTIDOS (FALLBACK)
+# ============================================
+
+# Dados de exemplo para 2026
+DADOS_2026 = {
+    'gastos': pd.DataFrame({
+        'Categoria': ['Pensão', 'Aluguel', 'Energia', 'Cartão Itaú', 'Seguro', 
+                      'Cartão Samsung', 'Cartão mercado pago', 'Gasolina', 'Outros',
+                      'Estudos', 'Cartão Nubank', 'Cartão Lethicia'],
+        'Janeiro': [1621, 450, 350, 580, 500, 460, 0, 400, 550, 360, 250, 500],
+        'Fevereiro': [1621, 450, 535, 410, 0, 522, 490, 300, 450, 0, 258, 564],
+        'Março': [1621, 450, 502, 410, 0, 680, 550, 300, 350, 0, 490, 550],
+        'Abril': [1621, 450, 480, 410, 0, 80, 250, 200, 250, 260, 0, 0],
+        'Maio': [1621, 450, 550, 0, 0, 880, 550, 300, 250, 260, 550, 210],
+        'Junho': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
+        'Julho': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
+        'Agosto': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
+        'Setembro': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
+        'Outubro': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
+        'Novembro': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
+        'Dezembro': [1621, 450, 380, 0, 0, 280, 250, 300, 0, 260, 550, 210]
+    }),
+    'ganhos': pd.DataFrame({
+        'Categoria': ['Salário', 'PL', 'Férias/13'],
+        'Janeiro': [7330, 0, 0],
+        'Fevereiro': [7330, 0, 0],
+        'Março': [7330, 0, 0],
+        'Abril': [7330, 0, 0],
+        'Maio': [7330, 9100, 0],
+        'Junho': [7330, 0, 0],
+        'Julho': [7330, 0, 0],
+        'Agosto': [7330, 0, 0],
+        'Setembro': [7330, 0, 0],
+        'Outubro': [7330, 0, 0],
+        'Novembro': [7330, 0, 0],
+        'Dezembro': [3380, 0, 13000]
+    })
+}
+
+DADOS_2027 = {
+    'gastos': pd.DataFrame({
+        'Categoria': ['Pensão', 'Aluguel', 'Energia', 'Cartão Porto', 'Cartão Samsung',
+                      'Cartão mercado pago', 'Gasolina', 'Outros', 'Estudos'],
+        'Janeiro': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
+        'Fevereiro': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
+        'Março': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
+        'Abril': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
+        'Maio': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
+        'Junho': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
+        'Julho': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
+        'Agosto': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
+        'Setembro': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
+        'Outubro': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
+        'Novembro': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
+        'Dezembro': [1700, 450, 600, 300, 150, 289, 500, 400, 600]
+    }),
+    'ganhos': pd.DataFrame({
+        'Categoria': ['Salário', 'PL', 'Férias/13'],
+        'Janeiro': [6600, 8000, 0],
+        'Fevereiro': [6600, 0, 0],
+        'Março': [6600, 0, 0],
+        'Abril': [6600, 10000, 0],
+        'Maio': [8000, 0, 0],
+        'Junho': [8000, 0, 0],
+        'Julho': [8000, 0, 0],
+        'Agosto': [8000, 0, 0],
+        'Setembro': [8000, 0, 0],
+        'Outubro': [8000, 0, 0],
+        'Novembro': [8000, 0, 0],
+        'Dezembro': [3300, 11000, 5000]
+    })
+}
+
+# ============================================
+# FUNÇÕES PARA CARREGAR DADOS DO EXCEL (TENTATIVA)
+# ============================================
+def carregar_do_excel():
+    """Tenta carregar dados do Excel, se disponível"""
+    try:
+        import openpyxl
+        arquivo = 'Pasta1.xlsx'
+        if not os.path.exists(arquivo):
+            return None
+        
+        dados = {}
+        for ano in ['2026', '2027']:
+            df_raw = pd.read_excel(arquivo, sheet_name=ano, header=None, engine='openpyxl')
+            linha_gastos = df_raw[df_raw[0] == 'Gastos'].index[0] + 1
+            linha_ganhos = df_raw[df_raw[0] == 'Ganhos'].index[0]
+            meses = df_raw.iloc[linha_gastos - 1, 1:13].values.tolist()
+            
+            gastos = df_raw.iloc[linha_gastos:linha_ganhos, :12].copy()
+            gastos.columns = ['Categoria'] + meses
+            gastos = gastos.dropna(subset=['Categoria'])
+            
+            ganhos = df_raw.iloc[linha_ganhos + 1:linha_ganhos + 10, :12].copy()
+            ganhos.columns = ['Categoria'] + meses
+            ganhos = ganhos.dropna(subset=['Categoria'])
+            
+            dados[ano] = {'gastos': gastos, 'ganhos': ganhos, 'meses': meses}
+        
+        return dados
+    except:
+        return None
+
+# ============================================
+# FUNÇÕES DE ANÁLISE
+# ============================================
+def calcular_totais(df):
+    """Calcula totais por mês"""
+    meses = df.columns[1:]
+    totais = []
+    for mes in meses:
+        total = df[mes].sum()
+        totais.append(total if pd.notna(total) else 0)
+    return totais
+
+def preparar_dados_long(df):
+    """Prepara dados para gráficos"""
+    dados_long = []
+    meses = df.columns[1:]
+    for _, row in df.iterrows():
+        categoria = row['Categoria']
+        for mes in meses:
+            valor = row[mes]
+            if pd.notna(valor) and valor != 0:
+                dados_long.append({'Categoria': categoria, 'Mês': mes, 'Valor': float(valor)})
+    return pd.DataFrame(dados_long)
+
+def top_gastos(df, n=10):
+    """Retorna top N gastos"""
+    dados_long = preparar_dados_long(df)
+    if dados_long.empty:
+        return pd.Series()
+    return dados_long.groupby('Categoria')['Valor'].sum().sort_values(ascending=False).head(n)
+
+# ============================================
+# SIDEBAR
 # ============================================
 with st.sidebar:
     st.markdown(f"""
-    <div style='text-align: center; padding: 10px;'>
+    <div style='text-align: center; padding: 20px;'>
         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                     border-radius: 50%; width: 80px; height: 80px; 
                     margin: 0 auto; display: flex; align-items: center; 
                     justify-content: center; font-size: 40px;'>
             👤
         </div>
-        <h3 style='margin-top: 10px;'>{st.session_state.get('user_name', 'Usuário')}</h3>
+        <h3>{st.session_state.get('user_name', 'Usuário')}</h3>
         <p style='color: green;'>✅ Logado</p>
-        <hr>
     </div>
     """, unsafe_allow_html=True)
     
-    logout()
+    if st.button("🚪 Sair", use_container_width=True):
+        st.session_state["authenticated"] = False
+        st.rerun()
+    
+    st.markdown("---")
+    
+    ano_selecionado = st.selectbox("📅 Selecione o ano", ['2026', '2027'])
+    tipo_visao = st.radio("📊 Tipo de visão", ['Visão Geral', 'Detalhado'])
 
 # ============================================
-# FUNÇÃO PARA CARREGAR DADOS
+# SELECIONAR DADOS
 # ============================================
-def carregar_dados_do_arquivo(arquivo):
-    """Carrega os dados do Excel"""
-    try:
-        dfs = {}
-        
-        # Verificar se é um arquivo válido
-        if arquivo is None:
-            return None
-        
-        for ano in ['2026', '2027']:
-            try:
-                # Tentar ler com openpyxl
-                if isinstance(arquivo, str):
-                    df_raw = pd.read_excel(arquivo, sheet_name=ano, header=None, engine='openpyxl')
-                else:
-                    df_raw = pd.read_excel(arquivo, sheet_name=ano, header=None, engine='openpyxl')
-                
-                # Verificar se conseguiu encontrar a linha 'Gastos'
-                if not (df_raw[0] == 'Gastos').any():
-                    st.warning(f"Aba {ano} não encontrada no formato esperado")
-                    dfs[ano] = None
-                    continue
-                
-                linha_gastos = df_raw[df_raw[0] == 'Gastos'].index[0] + 1
-                linha_ganhos = df_raw[df_raw[0] == 'Ganhos'].index[0]
-                linha_contas_pagas = df_raw[df_raw[0] == 'Contas Pagas'].index[0]
-                linha_total_gastos = df_raw[df_raw[0] == 'Total'].index[0]
-                linha_total_ganhos = df_raw[df_raw[0] == 'Total'].index[1]
-                
-                meses = df_raw.iloc[linha_gastos - 1, 1:13].values.tolist()
-                
-                gastos = df_raw.iloc[linha_gastos:linha_ganhos, :12].copy()
-                gastos.columns = ['Categoria'] + meses
-                gastos = gastos.dropna(subset=['Categoria'])
-                
-                ganhos = df_raw.iloc[linha_ganhos + 1:linha_contas_pagas, :12].copy()
-                ganhos.columns = ['Categoria'] + meses
-                ganhos = ganhos.dropna(subset=['Categoria'])
-                
-                saldo = df_raw.iloc[linha_contas_pagas:linha_contas_pagas + 1, 1:13].values[0]
-                
-                dfs[ano] = {
-                    'gastos': gastos,
-                    'ganhos': ganhos,
-                    'saldo': dict(zip(meses, saldo)),
-                    'total_gastos_ano': df_raw.iloc[linha_total_gastos, 1:13].values,
-                    'total_ganhos_ano': df_raw.iloc[linha_total_ganhos, 1:13].values,
-                    'meses': meses
-                }
-                
-                st.success(f"✅ Dados de {ano} carregados com sucesso!")
-                
-            except Exception as e:
-                st.error(f"Erro ao carregar {ano}: {str(e)}")
-                dfs[ano] = None
-        
-        return dfs
-    
-    except Exception as e:
-        st.error(f"Erro ao carregar dados: {str(e)}")
-        return None
+# Tentar carregar do Excel, se não conseguir usar dados embutidos
+dados_excel = carregar_do_excel()
 
-# ============================================
-# FUNÇÕES DE ANÁLISE (COM CACHE APENAS PARA PROCESSAMENTO)
-# ============================================
-@st.cache_data
-def preparar_dados_gastos_cached(df):
-    """Converte dados de gastos para formato longo (com cache)"""
-    dados_long = []
-    if df is None or len(df.columns) <= 1:
-        return pd.DataFrame()
-    
-    meses = df.columns[1:]
-    
-    for _, row in df.iterrows():
-        categoria = row['Categoria']
-        if pd.isna(categoria):
-            continue
-        for mes in meses:
-            valor = row[mes]
-            if pd.notna(valor) and valor != 0:
-                try:
-                    dados_long.append({
-                        'Categoria': str(categoria),
-                        'Mês': str(mes),
-                        'Valor': float(valor)
-                    })
-                except:
-                    pass
-    return pd.DataFrame(dados_long)
+if dados_excel and ano_selecionado in dados_excel:
+    dados_ano = dados_excel[ano_selecionado]
+    df_gastos = dados_ano['gastos']
+    df_ganhos = dados_ano['ganhos']
+    meses = dados_ano['meses']
+    st.info("📁 Dados carregados do arquivo Excel")
+else:
+    if ano_selecionado == '2026':
+        df_gastos = DADOS_2026['gastos']
+        df_ganhos = DADOS_2026['ganhos']
+    else:
+        df_gastos = DADOS_2027['gastos']
+        df_ganhos = DADOS_2027['ganhos']
+    meses = df_gastos.columns[1:].tolist()
+    st.info("📊 Usando dados de demonstração (arquivo Excel não encontrado)")
 
-def preparar_dados_gastos(df):
-    """Converte dados de gastos para formato longo"""
-    return preparar_dados_gastos_cached(df)
+# Calcular totais
+totais_gastos = calcular_totais(df_gastos)
+totais_ganhos = calcular_totais(df_ganhos)
+saldo_mensal = [g - h for g, h in zip(totais_ganhos, totais_gastos)]
 
-def top_gastos(df_gastos, top_n=10):
-    """Retorna os maiores gastos do ano"""
-    if df_gastos is None:
-        return pd.Series()
-    dados = preparar_dados_gastos_cached(df_gastos)
-    if dados.empty:
-        return pd.Series()
-    totais = dados.groupby('Categoria')['Valor'].sum().sort_values(ascending=False)
-    return totais.head(top_n)
-
-def gastos_por_mes(df_gastos):
-    """Retorna gastos agregados por mês"""
-    if df_gastos is None:
-        return pd.DataFrame()
-    dados = preparar_dados_gastos_cached(df_gastos)
-    if dados.empty:
-        return pd.DataFrame()
-    return dados.groupby('Mês')['Valor'].sum().reset_index()
-
-# ============================================
-# UPLOAD DO ARQUIVO
-# ============================================
-
-# Inicializar session state para o arquivo
-if 'arquivo_carregado' not in st.session_state:
-    st.session_state.arquivo_carregado = False
-if 'dados' not in st.session_state:
-    st.session_state.dados = None
-
-# Verificar se o arquivo já existe
-arquivo_existe = os.path.exists('Pasta1.xlsx')
-
-if not st.session_state.arquivo_carregado and arquivo_existe:
-    with st.spinner("Carregando dados..."):
-        st.session_state.dados = carregar_dados_do_arquivo('Pasta1.xlsx')
-        if st.session_state.dados:
-            st.session_state.arquivo_carregado = True
-
-if not st.session_state.arquivo_carregado:
-    st.warning("📁 Arquivo Pasta1.xlsx não encontrado! Faça o upload:")
-    
-    uploaded_file = st.file_uploader("Escolha o arquivo Excel", type=['xlsx', 'xls'])
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("📥 Baixar modelo de exemplo", use_container_width=True):
-            # Criar um modelo simples
-            st.info("Modelo criado! Prepare o arquivo conforme estrutura")
-    
-    with col2:
-        if uploaded_file is not None and st.button("✅ Carregar arquivo", use_container_width=True):
-            with st.spinner("Processando arquivo..."):
-                # Salvar o arquivo carregado
-                with open('Pasta1.xlsx', 'wb') as f:
-                    f.write(uploaded_file.getbuffer())
-                st.session_state.dados = carregar_dados_do_arquivo('Pasta1.xlsx')
-                if st.session_state.dados:
-                    st.session_state.arquivo_carregado = True
-                    st.success("✅ Arquivo carregado com sucesso!")
-                    st.rerun()
-    
-    st.stop()
-
-dados = st.session_state.dados
-
-if dados is None:
-    st.error("Erro ao carregar dados. Verifique o arquivo Pasta1.xlsx")
-    st.stop()
+total_ano_gastos = sum(totais_gastos)
+total_ano_ganhos = sum(totais_ganhos)
+saldo_anual = total_ano_ganhos - total_ano_gastos
 
 # ============================================
 # MAIN APP
 # ============================================
-
-# Boas-vindas
 st.balloons()
 st.markdown(f"""
 <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             padding: 20px; border-radius: 10px; margin-bottom: 20px; color: white;'>
-    <h2 style='margin: 0;'>Olá, {st.session_state.get('user_name', 'Usuário')}! 👋</h2>
-    <p style='margin: 5px 0 0 0;'>Bem-vindo ao seu controle financeiro</p>
+    <h2>Olá, {st.session_state.get('user_name', 'Usuário')}! 👋</h2>
+    <p>Bem-vindo ao seu controle financeiro</p>
 </div>
 """, unsafe_allow_html=True)
 
-# Filtros no sidebar
-with st.sidebar:
-    st.markdown("---")
-    st.subheader("🎛️ Filtros")
-    
-    anos_disponiveis = [ano for ano in ['2026', '2027'] if dados.get(ano) is not None]
-    
-    if not anos_disponiveis:
-        st.error("Nenhum ano disponível para análise")
-        st.stop()
-    
-    ano_selecionado = st.selectbox(
-        "Selecione o ano",
-        options=anos_disponiveis,
-        index=0
-    )
-    
-    tipo_visao = st.radio(
-        "Tipo de visão",
-        options=['Visão Geral', 'Detalhado', 'Comparativo Mensal'],
-        index=0
-    )
-
-dados_ano = dados[ano_selecionado]
-
-if dados_ano is None:
-    st.error(f"Dados não disponíveis para {ano_selecionado}")
-    st.stop()
-
-df_gastos = dados_ano['gastos']
-df_ganhos = dados_ano['ganhos']
-meses = dados_ano['meses']
-
-# ============================================
-# HEADER PRINCIPAL
-# ============================================
 st.title("💰 Controle Financeiro Inteligente")
 st.markdown(f"### 📅 Análise para {ano_selecionado}")
 
-# Cards de resumo
+# Cards
 col1, col2, col3, col4 = st.columns(4)
-
-total_gastos = sum([v for v in dados_ano['total_gastos_ano'] if pd.notna(v) and v is not None])
-total_ganhos = sum([v for v in dados_ano['total_ganhos_ano'] if pd.notna(v) and v is not None])
-saldo_total = total_ganhos - total_gastos
-media_mensal = total_gastos / 12 if total_gastos > 0 else 0
-
 with col1:
-    st.metric("💰 Total de Ganhos", f"R$ {total_ganhos:,.2f}")
+    st.metric("💰 Total de Ganhos", f"R$ {total_ano_ganhos:,.2f}")
 with col2:
-    st.metric("💸 Total de Gastos", f"R$ {total_gastos:,.2f}")
+    st.metric("💸 Total de Gastos", f"R$ {total_ano_gastos:,.2f}")
 with col3:
-    st.metric("📊 Saldo Anual", f"R$ {saldo_total:,.2f}", 
-              delta="Positivo" if saldo_total > 0 else "Negativo")
+    st.metric("📊 Saldo Anual", f"R$ {saldo_anual:,.2f}", 
+              delta="Positivo" if saldo_anual > 0 else "Negativo")
 with col4:
-    st.metric("📅 Média Mensal", f"R$ {media_mensal:,.2f}")
+    st.metric("📅 Média Mensal", f"R$ {total_ano_gastos/12:,.2f}")
 
 st.divider()
 
 # ============================================
-# GRÁFICOS (COM VERIFICAÇÃO)
+# VISÃO GERAL (COM GRÁFICOS NATIVOS)
 # ============================================
-
-# Visão Geral
 if tipo_visao == 'Visão Geral':
-    col1, col2 = st.columns([3, 2])
+    col1, col2 = st.columns(2)
     
     with col1:
         st.subheader("📊 Evolução Mensal")
         
-        df_temporal = pd.DataFrame({
+        df_plot = pd.DataFrame({
             'Mês': meses,
-            'Gastos': [float(x) if pd.notna(x) and x is not None else 0 for x in dados_ano['total_gastos_ano']],
-            'Ganhos': [float(x) if pd.notna(x) and x is not None else 0 for x in dados_ano['total_ganhos_ano']],
-            'Saldo': [float(x) if pd.notna(x) and x is not None else 0 for x in dados_ano['saldo'].values()]
+            'Gastos': totais_gastos,
+            'Ganhos': totais_ganhos
         })
         
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=df_temporal['Mês'], y=df_temporal['Gastos'],
-                                 name='Gastos', line=dict(color='red', width=3),
-                                 fill='tozeroy', fillcolor='rgba(255,0,0,0.1)'))
-        fig.add_trace(go.Scatter(x=df_temporal['Mês'], y=df_temporal['Ganhos'],
-                                 name='Ganhos', line=dict(color='green', width=3)))
-        fig.add_trace(go.Bar(x=df_temporal['Mês'], y=df_temporal['Saldo'],
-                             name='Saldo', marker_color='lightblue', opacity=0.7))
+        st.line_chart(df_plot.set_index('Mês'), use_container_width=True)
         
-        fig.update_layout(
-            title="Gastos vs Ganhos vs Saldo",
-            xaxis_title="Mês",
-            yaxis_title="Valor (R$)",
-            hovermode='x unified',
-            height=500
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        st.subheader("💰 Saldo Mensal")
+        df_saldo = pd.DataFrame({'Mês': meses, 'Saldo': saldo_mensal})
+        st.bar_chart(df_saldo.set_index('Mês'), use_container_width=True)
     
     with col2:
-        st.subheader("🎯 Top 10 Gastos Anuais")
+        st.subheader("🎯 Top 10 Gastos")
         top = top_gastos(df_gastos)
-        
         if not top.empty:
-            fig = px.bar(
-                x=top.values, y=top.index, orientation='h',
-                title="Maiores despesas do ano",
-                labels={'x': 'Valor (R$)', 'y': 'Categoria'},
-                color=top.values, color_continuous_scale='Reds'
-            )
-            fig.update_layout(height=500)
-            st.plotly_chart(fig, use_container_width=True)
+            st.dataframe(pd.DataFrame({
+                'Categoria': top.index,
+                'Total (R$)': [f"R$ {v:,.2f}" for v in top.values]
+            }), use_container_width=True)
         else:
             st.info("Nenhum gasto registrado")
     
     st.divider()
     
-    st.subheader("🥧 Distribuição de Gastos por Categoria")
+    st.subheader("🥧 Distribuição por Categoria")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        dados_gastos_long = preparar_dados_gastos(df_gastos)
-        if not dados_gastos_long.empty:
-            gastos_categoria = dados_gastos_long.groupby('Categoria')['Valor'].sum().reset_index()
-            gastos_categoria = gastos_categoria.sort_values('Valor', ascending=False).head(8)
-            
-            fig = px.pie(
-                gastos_categoria, values='Valor', names='Categoria',
-                title="Top 8 categorias - % do total",
-                hole=0.3,
-                color_discrete_sequence=px.colors.qualitative.Set3
-            )
-            fig.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        if not dados_gastos_long.empty:
-            fig = px.treemap(
-                gastos_categoria, path=['Categoria'], values='Valor',
-                title="Treemap - Hierarquia de gastos",
-                color='Valor', color_continuous_scale='Reds'
-            )
-            st.plotly_chart(fig, use_container_width=True)
+    dados_long = preparar_dados_long(df_gastos)
+    if not dados_long.empty:
+        gastos_cat = dados_long.groupby('Categoria')['Valor'].sum().sort_values(ascending=False)
+        
+        # Criar um gráfico de barras horizontal simples
+        st.bar_chart(pd.DataFrame(gastos_cat.head(10)), use_container_width=True)
+        
+        # Mostrar porcentagens
+        st.subheader("📊 Percentual por Categoria")
+        total = gastos_cat.sum()
+        for cat, valor in gastos_cat.head(8).items():
+            percent = (valor / total) * 100
+            st.progress(percent / 100, text=f"{cat}: R$ {valor:,.2f} ({percent:.1f}%)")
 
-# Visão Detalhada
-elif tipo_visao == 'Detalhado':
-    st.subheader("📋 Análise Detalhada de Gastos")
+# ============================================
+# VISÃO DETALHADA
+# ============================================
+else:
+    st.subheader("📋 Análise Detalhada")
     
-    categorias = df_gastos['Categoria'].dropna().unique().tolist()
-    categorias_selecionadas = st.multiselect(
-        "Filtrar por categorias",
-        options=categorias,
-        default=categorias[:3] if len(categorias) > 3 else categorias
-    )
+    # Filtro
+    categorias = df_gastos['Categoria'].tolist()
+    cats_selecionadas = st.multiselect("Filtrar categorias", categorias, default=categorias[:3] if len(categorias) > 3 else categorias)
     
-    if categorias_selecionadas:
-        df_filtrado = df_gastos[df_gastos['Categoria'].isin(categorias_selecionadas)]
+    if cats_selecionadas:
+        df_filtrado = df_gastos[df_gastos['Categoria'].isin(cats_selecionadas)]
         
-        st.subheader("🔥 Mapa de Calor - Gastos Mensais por Categoria")
-        
-        matriz_calor = df_filtrado.set_index('Categoria')[meses]
-        matriz_calor = matriz_calor.fillna(0)
-        
-        fig = px.imshow(
-            matriz_calor,
-            labels=dict(x="Mês", y="Categoria", color="Valor (R$)"),
-            title="Intensidade de gastos ao longo do ano",
-            color_continuous_scale='RdYlGn_r',
-            aspect="auto",
-            text_auto='.0f'
-        )
-        fig.update_layout(height=400)
-        st.plotly_chart(fig, use_container_width=True)
-        
-        st.subheader("📊 Comparativo Mensal por Categoria")
-        
-        df_barras = df_filtrado.melt(id_vars=['Categoria'], var_name='Mês', value_name='Valor')
-        df_barras = df_barras.dropna(subset=['Valor'])
-        
-        if not df_barras.empty:
-            fig = px.bar(
-                df_barras, x='Mês', y='Valor', color='Categoria',
-                title="Gastos por categoria ao longo dos meses",
-                barmode='stack',
-                text_auto='.0f'
-            )
-            fig.update_layout(height=500)
-            st.plotly_chart(fig, use_container_width=True)
+        st.subheader("📊 Comparativo Mensal")
+        # Transpor para melhor visualização
+        df_plot = df_filtrado.set_index('Categoria').T
+        st.area_chart(df_plot, use_container_width=True)
     
     st.subheader("📑 Tabela Completa de Gastos")
-    st.dataframe(df_gastos, use_container_width=True)
-
-# Comparativo Mensal
-else:
-    st.subheader("📈 Comparativo Mensal Detalhado")
     
-    meses_selecionados = st.multiselect(
-        "Selecione os meses para comparar",
-        options=meses,
-        default=meses[:2] if len(meses) >= 2 else meses
-    )
+    # Formatar para exibição
+    df_display = df_gastos.copy()
+    for mes in meses:
+        df_display[mes] = df_display[mes].apply(lambda x: f"R$ {x:,.2f}" if pd.notna(x) else "-")
     
-    if meses_selecionados:
-        dados_comparacao = preparar_dados_gastos(df_gastos)
-        dados_comparacao = dados_comparacao[dados_comparacao['Mês'].isin(meses_selecionados)]
-        
-        if not dados_comparacao.empty:
-            fig = go.Figure()
-            
-            for mes in meses_selecionados:
-                dados_mes = dados_comparacao[dados_comparacao['Mês'] == mes]
-                totais_cat = dados_mes.groupby('Categoria')['Valor'].sum().reset_index()
-                
-                fig.add_trace(go.Bar(
-                    x=totais_cat['Categoria'],
-                    y=totais_cat['Valor'],
-                    name=mes
-                ))
-            
-            fig.update_layout(
-                title="Comparativo de gastos por categoria",
-                xaxis_title="Categoria",
-                yaxis_title="Valor (R$)",
-                barmode='group',
-                height=500
-            )
-            st.plotly_chart(fig, use_container_width=True)
+    st.dataframe(df_display, use_container_width=True, hide_index=True)
+    
+    st.subheader("💰 Tabela de Ganhos")
+    df_ganhos_display = df_ganhos.copy()
+    for mes in meses:
+        df_ganhos_display[mes] = df_ganhos_display[mes].apply(lambda x: f"R$ {x:,.2f}" if pd.notna(x) else "-")
+    st.dataframe(df_ganhos_display, use_container_width=True, hide_index=True)
 
 # ============================================
-# SIDEBAR INSIGHTS
+# INSIGHTS
 # ============================================
-with st.sidebar:
-    st.markdown("---")
-    st.subheader("📌 Insights Rápidos")
-    
-    gastos_mensais = gastos_por_mes(df_gastos)
-    if not gastos_mensais.empty:
-        maior_gasto_mes = gastos_mensais.loc[gastos_mensais['Valor'].idxmax()]
-        st.info(f"🔥 **Mês de maior gasto:**\n{maior_gasto_mes['Mês']}\nR$ {maior_gasto_mes['Valor']:,.2f}")
-    
-    top_categorias = top_gastos(df_gastos, 3)
-    if not top_categorias.empty:
-        st.warning(f"💰 **Top 3 categorias:**\n\n1. {top_categorias.index[0]}: R$ {top_categorias.values[0]:,.2f}\n\n2. {top_categorias.index[1]}: R$ {top_categorias.values[1]:,.2f}\n\n3. {top_categorias.index[2]}: R$ {top_categorias.values[2]:,.2f}")
-    
-    if saldo_total < 0:
-        st.error("⚠️ **ALERTA:** Saldo anual negativo! Revise seus gastos.")
-    elif saldo_total > 0:
-        st.success(f"✅ **Bom trabalho!** Saldo positivo de R$ {saldo_total:,.2f}")
+st.sidebar.markdown("---")
+st.sidebar.subheader("📌 Insights")
+
+# Maior gasto
+dados_long = preparar_dados_long(df_gastos)
+if not dados_long.empty:
+    maior = dados_long.loc[dados_long['Valor'].idxmax()]
+    st.sidebar.info(f"🔥 Maior gasto único:\n{maior['Categoria']} em {maior['Mês']}\nR$ {maior['Valor']:,.2f}")
+
+# Categoria que mais gasta
+top_cat = top_gastos(df_gastos, 1)
+if not top_cat.empty:
+    st.sidebar.warning(f"💰 Categoria que mais gasta:\n{top_cat.index[0]}\nR$ {top_cat.values[0]:,.2f}")
+
+if saldo_anual < 0:
+    st.sidebar.error("⚠️ ALERTA: Saldo anual negativo!")
+elif saldo_anual > 0:
+    st.sidebar.success(f"✅ Saldo positivo de R$ {saldo_anual:,.2f}")
+
+st.sidebar.markdown("---")
+st.sidebar.caption("💰 Controle Financeiro Pessoal")
 
 # Footer
 st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: gray; padding: 20px;'>
-    <p>💰 Controle Financeiro Pessoal | Desenvolvido com ❤️ para Juan</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: gray;'><p>Desenvolvido com ❤️ para Juan</p></div>", unsafe_allow_html=True)
