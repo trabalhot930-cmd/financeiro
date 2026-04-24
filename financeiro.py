@@ -9,7 +9,6 @@ try:
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
-    st.warning("⚠️ Plotly não está instalado. Instale com: pip install plotly")
 
 import hashlib
 import sys
@@ -148,7 +147,6 @@ with st.sidebar:
 def carregar_dados():
     """Carrega os dados do Excel"""
     try:
-        # Tentar diferentes caminhos para o arquivo
         possiveis_caminhos = ['Pasta1.xlsx', 'data/Pasta1.xlsx', '../Pasta1.xlsx']
         arquivo = None
         
@@ -158,8 +156,8 @@ def carregar_dados():
                 break
         
         if arquivo is None:
-            st.error("❌ Arquivo Pasta1.xlsx não encontrado!")
-            st.info("📁 Por favor, faça upload do arquivo Pasta1.xlsx usando o botão abaixo:")
+            st.error("Arquivo Pasta1.xlsx nao encontrado!")
+            st.info("Por favor, faca upload do arquivo Pasta1.xlsx usando o botao abaixo:")
             
             uploaded_file = st.file_uploader("Escolha o arquivo Excel", type=['xlsx'])
             if uploaded_file is not None:
@@ -176,27 +174,22 @@ def carregar_dados():
                 else:
                     df_raw = pd.read_excel(arquivo, sheet_name=ano, header=None)
                 
-                # Encontrar linhas importantes
                 linha_gastos = df_raw[df_raw[0] == 'Gastos'].index[0] + 1
                 linha_ganhos = df_raw[df_raw[0] == 'Ganhos'].index[0]
                 linha_contas_pagas = df_raw[df_raw[0] == 'Contas Pagas'].index[0]
                 linha_total_gastos = df_raw[df_raw[0] == 'Total'].index[0]
                 linha_total_ganhos = df_raw[df_raw[0] == 'Total'].index[1]
                 
-                # Meses
                 meses = df_raw.iloc[linha_gastos - 1, 1:13].values.tolist()
                 
-                # Extrair gastos
                 gastos = df_raw.iloc[linha_gastos:linha_ganhos, :12].copy()
                 gastos.columns = ['Categoria'] + meses
                 gastos = gastos.dropna(subset=['Categoria'])
                 
-                # Extrair ganhos
                 ganhos = df_raw.iloc[linha_ganhos + 1:linha_contas_pagas, :12].copy()
                 ganhos.columns = ['Categoria'] + meses
                 ganhos = ganhos.dropna(subset=['Categoria'])
                 
-                # Saldo mensal
                 saldo = df_raw.iloc[linha_contas_pagas:linha_contas_pagas + 1, 1:13].values[0]
                 
                 dfs[ano] = {
@@ -215,11 +208,11 @@ def carregar_dados():
         return dfs
     
     except Exception as e:
-        st.error(f"❌ Erro ao carregar dados: {str(e)}")
+        st.error(f"Erro ao carregar dados: {str(e)}")
         return None
 
 # ============================================
-# FUNÇÕES DE ANÁLISE (SEM PLOTLY)
+# FUNÇÕES DE ANÁLISE
 # ============================================
 def preparar_dados_gastos(df):
     """Converte dados de gastos para formato longo"""
@@ -258,7 +251,7 @@ st.balloons()
 st.markdown(f"""
 <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             padding: 20px; border-radius: 10px; margin-bottom: 20px; color: white;'>
-    <h2 style='margin: 0;'>Olá, {st.session_state.get('user_name', 'Usuário')}! 👋</h2>
+    <h2 style='margin: 0;'>Ola, {st.session_state.get('user_name', 'Usuario')}! 👋</h2>
     <p style='margin: 5px 0 0 0;'>Bem-vindo ao seu controle financeiro</p>
 </div>
 """, unsafe_allow_html=True)
@@ -266,7 +259,7 @@ st.markdown(f"""
 # Filtros no sidebar
 with st.sidebar:
     st.markdown("---")
-    st.subheader("🎛️ Filtros")
+    st.subheader("Filtros")
     
     ano_selecionado = st.selectbox(
         "Selecione o ano",
@@ -275,8 +268,8 @@ with st.sidebar:
     )
     
     tipo_visao = st.radio(
-        "Tipo de visão",
-        options=['Visão Geral', 'Detalhado', 'Comparativo Mensal'],
+        "Tipo de visao",
+        options=['Visao Geral', 'Detalhado', 'Comparativo Mensal'],
         index=0
     )
 
@@ -295,8 +288,8 @@ meses = dados_ano['meses']
 # ============================================
 # HEADER PRINCIPAL
 # ============================================
-st.title("💰 Controle Financeiro Inteligente")
-st.markdown(f"### 📅 Análise para {ano_selecionado}")
+st.title("Controle Financeiro Inteligente")
+st.markdown(f"### Analise para {ano_selecionado}")
 
 # Cards de resumo
 col1, col2, col3, col4 = st.columns(4)
@@ -307,22 +300,216 @@ saldo_total = total_ganhos - total_gastos
 media_mensal = total_gastos / 12 if total_gastos > 0 else 0
 
 with col1:
-    st.metric("💰 Total de Ganhos", f"R$ {total_ganhos:,.2f}")
+    st.metric("Total de Ganhos", f"R$ {total_ganhos:,.2f}")
 with col2:
-    st.metric("💸 Total de Gastos", f"R$ {total_gastos:,.2f}")
+    st.metric("Total de Gastos", f"R$ {total_gastos:,.2f}")
 with col3:
-    st.metric("📊 Saldo Anual", f"R$ {saldo_total:,.2f}", 
+    st.metric("Saldo Anual", f"R$ {saldo_total:,.2f}", 
               delta="Positivo" if saldo_total > 0 else "Negativo")
 with col4:
-    st.metric("📅 Média Mensal", f"R$ {media_mensal:,.2f}")
+    st.metric("Media Mensal", f"R$ {media_mensal:,.2f}")
 
 st.divider()
 
-# Verificar se plotly está disponível
+# Verificar se plotly esta disponivel
 if not PLOTLY_AVAILABLE:
-    st.warning("""
-    ⚠️ **Plotly não está instalado!** 
+    st.warning("Plotly nao esta instalado. Execute: pip install plotly")
+    st.subheader("Dados de Gastos")
+    st.dataframe(df_gastos, use_container_width=True)
+    st.subheader("Dados de Ganhos")
+    st.dataframe(df_ganhos, use_container_width=True)
+    st.stop()
+
+# ============================================
+# VISÃO GERAL
+# ============================================
+if tipo_visao == 'Visao Geral':
+    col1, col2 = st.columns([3, 2])
     
-    Para instalar, execute:
-    ```bash
-    pip install plotly
+    with col1:
+        st.subheader("Evolucao Mensal")
+        
+        df_temporal = pd.DataFrame({
+            'Mês': meses,
+            'Gastos': [float(x) if pd.notna(x) else 0 for x in dados_ano['total_gastos_ano']],
+            'Ganhos': [float(x) if pd.notna(x) else 0 for x in dados_ano['total_ganhos_ano']],
+            'Saldo': [float(x) if pd.notna(x) else 0 for x in dados_ano['saldo'].values()]
+        })
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df_temporal['Mês'], y=df_temporal['Gastos'],
+                                 name='Gastos', line=dict(color='red', width=3),
+                                 fill='tozeroy', fillcolor='rgba(255,0,0,0.1)'))
+        fig.add_trace(go.Scatter(x=df_temporal['Mês'], y=df_temporal['Ganhos'],
+                                 name='Ganhos', line=dict(color='green', width=3)))
+        fig.add_trace(go.Bar(x=df_temporal['Mês'], y=df_temporal['Saldo'],
+                             name='Saldo', marker_color='lightblue', opacity=0.7))
+        
+        fig.update_layout(
+            title="Gastos vs Ganhos vs Saldo",
+            xaxis_title="Mes",
+            yaxis_title="Valor (R$)",
+            hovermode='x unified',
+            height=500
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.subheader("Top 10 Gastos Anuais")
+        top = top_gastos(df_gastos)
+        
+        fig = px.bar(
+            x=top.values, y=top.index, orientation='h',
+            title="Maiores despesas do ano",
+            labels={'x': 'Valor (R$)', 'y': 'Categoria'},
+            color=top.values, color_continuous_scale='Reds'
+        )
+        fig.update_layout(height=500)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    st.divider()
+    
+    st.subheader("Distribuicao de Gastos por Categoria")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        dados_gastos_long = preparar_dados_gastos(df_gastos)
+        if not dados_gastos_long.empty:
+            gastos_categoria = dados_gastos_long.groupby('Categoria')['Valor'].sum().reset_index()
+            gastos_categoria = gastos_categoria.sort_values('Valor', ascending=False).head(8)
+            
+            fig = px.pie(
+                gastos_categoria, values='Valor', names='Categoria',
+                title="Top 8 categorias - % do total",
+                hole=0.3,
+                color_discrete_sequence=px.colors.qualitative.Set3
+            )
+            fig.update_traces(textposition='inside', textinfo='percent+label')
+            st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        if not dados_gastos_long.empty:
+            fig = px.treemap(
+                gastos_categoria, path=['Categoria'], values='Valor',
+                title="Treemap - Hierarquia de gastos",
+                color='Valor', color_continuous_scale='Reds'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+# ============================================
+# VISÃO DETALHADA
+# ============================================
+elif tipo_visao == 'Detalhado':
+    st.subheader("Analise Detalhada de Gastos")
+    
+    categorias = df_gastos['Categoria'].unique().tolist()
+    categorias_selecionadas = st.multiselect(
+        "Filtrar por categorias",
+        options=categorias,
+        default=categorias[:3] if len(categorias) > 3 else categorias
+    )
+    
+    if categorias_selecionadas:
+        df_filtrado = df_gastos[df_gastos['Categoria'].isin(categorias_selecionadas)]
+        
+        st.subheader("Mapa de Calor - Gastos Mensais por Categoria")
+        
+        matriz_calor = df_filtrado.set_index('Categoria')[meses]
+        matriz_calor = matriz_calor.fillna(0)
+        
+        fig = px.imshow(
+            matriz_calor,
+            labels=dict(x="Mes", y="Categoria", color="Valor (R$)"),
+            title="Intensidade de gastos ao longo do ano",
+            color_continuous_scale='RdYlGn_r',
+            aspect="auto",
+            text_auto='.0f'
+        )
+        fig.update_layout(height=400)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        st.subheader("Comparativo Mensal por Categoria")
+        
+        df_barras = df_filtrado.melt(id_vars=['Categoria'], var_name='Mes', value_name='Valor')
+        df_barras = df_barras.dropna(subset=['Valor'])
+        
+        if not df_barras.empty:
+            fig = px.bar(
+                df_barras, x='Mes', y='Valor', color='Categoria',
+                title="Gastos por categoria ao longo dos meses",
+                barmode='stack',
+                text_auto='.0f'
+            )
+            fig.update_layout(height=500)
+            st.plotly_chart(fig, use_container_width=True)
+    
+    st.subheader("Tabela Completa de Gastos")
+    st.dataframe(df_gastos, use_container_width=True)
+
+# ============================================
+# COMPARATIVO MENSAL
+# ============================================
+else:
+    st.subheader("Comparativo Mensal Detalhado")
+    
+    meses_selecionados = st.multiselect(
+        "Selecione os meses para comparar",
+        options=meses,
+        default=meses[:2] if len(meses) >= 2 else meses
+    )
+    
+    if meses_selecionados:
+        dados_comparacao = preparar_dados_gastos(df_gastos)
+        dados_comparacao = dados_comparacao[dados_comparacao['Mês'].isin(meses_selecionados)]
+        
+        if not dados_comparacao.empty:
+            fig = go.Figure()
+            
+            for mes in meses_selecionados:
+                dados_mes = dados_comparacao[dados_comparacao['Mês'] == mes]
+                totais_cat = dados_mes.groupby('Categoria')['Valor'].sum().reset_index()
+                
+                fig.add_trace(go.Bar(
+                    x=totais_cat['Categoria'],
+                    y=totais_cat['Valor'],
+                    name=mes
+                ))
+            
+            fig.update_layout(
+                title="Comparativo de gastos por categoria",
+                xaxis_title="Categoria",
+                yaxis_title="Valor (R$)",
+                barmode='group',
+                height=500
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+# ============================================
+# SIDEBAR INSIGHTS
+# ============================================
+with st.sidebar:
+    st.markdown("---")
+    st.subheader("Insights Rapidos")
+    
+    gastos_mensais = gastos_por_mes(df_gastos)
+    if not gastos_mensais.empty:
+        maior_gasto_mes = gastos_mensais.loc[gastos_mensais['Valor'].idxmax()]
+        st.info(f"Mes de maior gasto: {maior_gasto_mes['Mês']}\nR$ {maior_gasto_mes['Valor']:,.2f}")
+    
+    top_categorias = top_gastos(df_gastos, 3)
+    if not top_categorias.empty:
+        st.warning(f"Top 3 categorias:\n\n1. {top_categorias.index[0]}: R$ {top_categorias.values[0]:,.2f}\n\n2. {top_categorias.index[1]}: R$ {top_categorias.values[1]:,.2f}\n\n3. {top_categorias.index[2]}: R$ {top_categorias.values[2]:,.2f}")
+    
+    if saldo_total < 0:
+        st.error("ALERTA: Saldo anual negativo! Revise seus gastos.")
+    elif saldo_total > 0:
+        st.success(f"Bom trabalho! Saldo positivo de R$ {saldo_total:,.2f}")
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: gray; padding: 20px;'>
+    <p>Controle Financeiro Pessoal | Desenvolvido para Juan</p>
+</div>
+""", unsafe_allow_html=True)
