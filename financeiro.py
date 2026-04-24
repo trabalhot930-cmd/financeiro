@@ -1,7 +1,8 @@
+
 import streamlit as st
 import pandas as pd
-import json
 from datetime import datetime
+import os
 
 # ============================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -72,47 +73,48 @@ if not st.session_state["authenticated"]:
     st.stop()
 
 # ============================================
-# DADOS EMBUTIDOS (FALLBACK)
+# INICIALIZAR SESSION STATE PARA DADOS
 # ============================================
-
-# Dados de exemplo para 2026
-DADOS_2026 = {
-    'gastos': pd.DataFrame({
+if 'dados_2026_gastos' not in st.session_state:
+    # Dados padrão 2026
+    st.session_state.dados_2026_gastos = pd.DataFrame({
         'Categoria': ['Pensão', 'Aluguel', 'Energia', 'Cartão Itaú', 'Seguro', 
                       'Cartão Samsung', 'Cartão mercado pago', 'Gasolina', 'Outros',
-                      'Estudos', 'Cartão Nubank', 'Cartão Lethicia'],
-        'Janeiro': [1621, 450, 350, 580, 500, 460, 0, 400, 550, 360, 250, 500],
-        'Fevereiro': [1621, 450, 535, 410, 0, 522, 490, 300, 450, 0, 258, 564],
-        'Março': [1621, 450, 502, 410, 0, 680, 550, 300, 350, 0, 490, 550],
-        'Abril': [1621, 450, 480, 410, 0, 80, 250, 200, 250, 260, 0, 0],
-        'Maio': [1621, 450, 550, 0, 0, 880, 550, 300, 250, 260, 550, 210],
-        'Junho': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
-        'Julho': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
-        'Agosto': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
-        'Setembro': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
-        'Outubro': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
-        'Novembro': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210],
-        'Dezembro': [1621, 450, 380, 0, 0, 280, 250, 300, 0, 260, 550, 210]
-    }),
-    'ganhos': pd.DataFrame({
-        'Categoria': ['Salário', 'PL', 'Férias/13'],
-        'Janeiro': [7330, 0, 0],
-        'Fevereiro': [7330, 0, 0],
-        'Março': [7330, 0, 0],
-        'Abril': [7330, 0, 0],
-        'Maio': [7330, 9100, 0],
-        'Junho': [7330, 0, 0],
-        'Julho': [7330, 0, 0],
-        'Agosto': [7330, 0, 0],
-        'Setembro': [7330, 0, 0],
-        'Outubro': [7330, 0, 0],
-        'Novembro': [7330, 0, 0],
-        'Dezembro': [3380, 0, 13000]
+                      'Estudos', 'Cartão Nubank', 'Cartão Lethicia', 'Empréstimo Bruno',
+                      'Empréstimo PAN', 'Empréstimo PIC', 'Internet'],
+        'Janeiro': [1621, 450, 350, 580, 500, 460, 0, 400, 550, 360, 250, 500, 250, 746, 0, 200],
+        'Fevereiro': [1621, 450, 535, 410, 0, 522, 490, 300, 450, 0, 258, 564, 350, 746, 890, 200],
+        'Março': [1621, 450, 502, 410, 0, 680, 550, 300, 350, 0, 490, 550, 250, 746, 890, 200],
+        'Abril': [1621, 450, 480, 410, 0, 80, 250, 200, 250, 260, 0, 0, 0, 746, 890, 200],
+        'Maio': [1621, 450, 550, 0, 0, 880, 550, 300, 250, 260, 550, 210, 0, 746, 890, 200],
+        'Junho': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210, 0, 746, 890, 200],
+        'Julho': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210, 0, 746, 890, 200],
+        'Agosto': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210, 0, 746, 890, 200],
+        'Setembro': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210, 0, 746, 890, 200],
+        'Outubro': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210, 0, 746, 890, 200],
+        'Novembro': [1621, 450, 550, 0, 0, 280, 250, 300, 250, 260, 550, 210, 0, 746, 890, 200],
+        'Dezembro': [1621, 450, 380, 0, 0, 280, 250, 300, 0, 260, 550, 210, 0, 746, 890, 200]
     })
-}
 
-DADOS_2027 = {
-    'gastos': pd.DataFrame({
+if 'dados_2026_ganhos' not in st.session_state:
+    st.session_state.dados_2026_ganhos = pd.DataFrame({
+        'Categoria': ['Salário', 'PL', 'Férias/13', 'Restituição'],
+        'Janeiro': [7330, 0, 0, 0],
+        'Fevereiro': [7330, 0, 0, 0],
+        'Março': [7330, 0, 0, 0],
+        'Abril': [7330, 0, 0, 0],
+        'Maio': [7330, 9100, 0, 0],
+        'Junho': [7330, 0, 0, 0],
+        'Julho': [7330, 0, 0, 0],
+        'Agosto': [7330, 0, 0, 0],
+        'Setembro': [7330, 0, 0, 0],
+        'Outubro': [7330, 0, 0, 0],
+        'Novembro': [7330, 0, 0, 0],
+        'Dezembro': [3380, 0, 13000, 0]
+    })
+
+if 'dados_2027_gastos' not in st.session_state:
+    st.session_state.dados_2027_gastos = pd.DataFrame({
         'Categoria': ['Pensão', 'Aluguel', 'Energia', 'Cartão Porto', 'Cartão Samsung',
                       'Cartão mercado pago', 'Gasolina', 'Outros', 'Estudos'],
         'Janeiro': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
@@ -127,8 +129,10 @@ DADOS_2027 = {
         'Outubro': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
         'Novembro': [1700, 450, 600, 300, 150, 289, 500, 400, 600],
         'Dezembro': [1700, 450, 600, 300, 150, 289, 500, 400, 600]
-    }),
-    'ganhos': pd.DataFrame({
+    })
+
+if 'dados_2027_ganhos' not in st.session_state:
+    st.session_state.dados_2027_ganhos = pd.DataFrame({
         'Categoria': ['Salário', 'PL', 'Férias/13'],
         'Janeiro': [6600, 8000, 0],
         'Fevereiro': [6600, 0, 0],
@@ -143,39 +147,6 @@ DADOS_2027 = {
         'Novembro': [8000, 0, 0],
         'Dezembro': [3300, 11000, 5000]
     })
-}
-
-# ============================================
-# FUNÇÕES PARA CARREGAR DADOS DO EXCEL (TENTATIVA)
-# ============================================
-def carregar_do_excel():
-    """Tenta carregar dados do Excel, se disponível"""
-    try:
-        import openpyxl
-        arquivo = 'Pasta1.xlsx'
-        if not os.path.exists(arquivo):
-            return None
-        
-        dados = {}
-        for ano in ['2026', '2027']:
-            df_raw = pd.read_excel(arquivo, sheet_name=ano, header=None, engine='openpyxl')
-            linha_gastos = df_raw[df_raw[0] == 'Gastos'].index[0] + 1
-            linha_ganhos = df_raw[df_raw[0] == 'Ganhos'].index[0]
-            meses = df_raw.iloc[linha_gastos - 1, 1:13].values.tolist()
-            
-            gastos = df_raw.iloc[linha_gastos:linha_ganhos, :12].copy()
-            gastos.columns = ['Categoria'] + meses
-            gastos = gastos.dropna(subset=['Categoria'])
-            
-            ganhos = df_raw.iloc[linha_ganhos + 1:linha_ganhos + 10, :12].copy()
-            ganhos.columns = ['Categoria'] + meses
-            ganhos = ganhos.dropna(subset=['Categoria'])
-            
-            dados[ano] = {'gastos': gastos, 'ganhos': ganhos, 'meses': meses}
-        
-        return dados
-    except:
-        return None
 
 # ============================================
 # FUNÇÕES DE ANÁLISE
@@ -208,6 +179,16 @@ def top_gastos(df, n=10):
         return pd.Series()
     return dados_long.groupby('Categoria')['Valor'].sum().sort_values(ascending=False).head(n)
 
+def adicionar_categoria(df, nova_categoria, valores_mensais):
+    """Adiciona uma nova categoria ao DataFrame"""
+    nova_linha = [nova_categoria] + valores_mensais
+    df.loc[len(df)] = nova_linha
+    return df
+
+def remover_categoria(df, categoria):
+    """Remove uma categoria do DataFrame"""
+    return df[df['Categoria'] != categoria]
+
 # ============================================
 # SIDEBAR
 # ============================================
@@ -232,34 +213,24 @@ with st.sidebar:
     st.markdown("---")
     
     ano_selecionado = st.selectbox("📅 Selecione o ano", ['2026', '2027'])
-    tipo_visao = st.radio("📊 Tipo de visão", ['Visão Geral', 'Detalhado'])
+    tipo_visao = st.radio("📊 Tipo de visão", ['Visão Geral', 'Detalhado', 'Editar Dados'])
 
 # ============================================
 # SELECIONAR DADOS
 # ============================================
-# Tentar carregar do Excel, se não conseguir usar dados embutidos
-dados_excel = carregar_do_excel()
-
-if dados_excel and ano_selecionado in dados_excel:
-    dados_ano = dados_excel[ano_selecionado]
-    df_gastos = dados_ano['gastos']
-    df_ganhos = dados_ano['ganhos']
-    meses = dados_ano['meses']
-    st.info("📁 Dados carregados do arquivo Excel")
+if ano_selecionado == '2026':
+    df_gastos = st.session_state.dados_2026_gastos
+    df_ganhos = st.session_state.dados_2026_ganhos
 else:
-    if ano_selecionado == '2026':
-        df_gastos = DADOS_2026['gastos']
-        df_ganhos = DADOS_2026['ganhos']
-    else:
-        df_gastos = DADOS_2027['gastos']
-        df_ganhos = DADOS_2027['ganhos']
-    meses = df_gastos.columns[1:].tolist()
-    st.info("📊 Usando dados de demonstração (arquivo Excel não encontrado)")
+    df_gastos = st.session_state.dados_2027_gastos
+    df_ganhos = st.session_state.dados_2027_ganhos
+
+meses = df_gastos.columns[1:].tolist()
 
 # Calcular totais
 totais_gastos = calcular_totais(df_gastos)
 totais_ganhos = calcular_totais(df_ganhos)
-saldo_mensal = [g - h for g, h in zip(totais_ganhos, totais_gastos)]
+saldo_mensal = [ganhos - gastos for ganhos, gastos in zip(totais_ganhos, totais_gastos)]  # CORRETO: Ganhos - Gastos
 
 total_ano_gastos = sum(totais_gastos)
 total_ano_ganhos = sum(totais_ganhos)
@@ -268,7 +239,6 @@ saldo_anual = total_ano_ganhos - total_ano_gastos
 # ============================================
 # MAIN APP
 # ============================================
-st.balloons()
 st.markdown(f"""
 <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             padding: 20px; border-radius: 10px; margin-bottom: 20px; color: white;'>
@@ -290,14 +260,104 @@ with col3:
     st.metric("📊 Saldo Anual", f"R$ {saldo_anual:,.2f}", 
               delta="Positivo" if saldo_anual > 0 else "Negativo")
 with col4:
-    st.metric("📅 Média Mensal", f"R$ {total_ano_gastos/12:,.2f}")
+    st.metric("📅 Média Mensal de Gastos", f"R$ {total_ano_gastos/12:,.2f}")
 
 st.divider()
 
 # ============================================
-# VISÃO GERAL (COM GRÁFICOS NATIVOS)
+# EDITAR DADOS
 # ============================================
-if tipo_visao == 'Visão Geral':
+if tipo_visao == 'Editar Dados':
+    st.subheader("✏️ Editor de Dados")
+    
+    tab1, tab2, tab3 = st.tabs(["📝 Editar Gastos", "💰 Editar Ganhos", "➕ Adicionar/Remover Categoria"])
+    
+    with tab1:
+        st.write("### Editar Gastos")
+        st.info("Clique em uma célula para editar o valor")
+        
+        # Fazer cópia editável
+        gastos_edit = st.data_editor(
+            df_gastos,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Categoria": st.column_config.TextColumn("Categoria", required=True),
+                **{mes: st.column_config.NumberColumn(mes, format="R$ %.2f") for mes in meses}
+            }
+        )
+        
+        if st.button("💾 Salvar alterações nos Gastos", use_container_width=True):
+            if ano_selecionado == '2026':
+                st.session_state.dados_2026_gastos = gastos_edit
+            else:
+                st.session_state.dados_2027_gastos = gastos_edit
+            st.success("✅ Alterações salvas com sucesso!")
+            st.rerun()
+    
+    with tab2:
+        st.write("### Editar Ganhos")
+        
+        ganhos_edit = st.data_editor(
+            df_ganhos,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Categoria": st.column_config.TextColumn("Categoria", required=True),
+                **{mes: st.column_config.NumberColumn(mes, format="R$ %.2f") for mes in meses}
+            }
+        )
+        
+        if st.button("💾 Salvar alterações nos Ganhos", use_container_width=True):
+            if ano_selecionado == '2026':
+                st.session_state.dados_2026_ganhos = ganhos_edit
+            else:
+                st.session_state.dados_2027_ganhos = ganhos_edit
+            st.success("✅ Alterações salvas com sucesso!")
+            st.rerun()
+    
+    with tab3:
+        st.write("### Adicionar Nova Categoria de Gasto")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            nova_categoria = st.text_input("Nome da nova categoria")
+        with col2:
+            valores = []
+            for mes in meses:
+                valor = st.number_input(f"Valor para {mes}", value=0.0, step=100.0)
+                valores.append(valor)
+        
+        if st.button("➕ Adicionar Categoria", use_container_width=True):
+            if nova_categoria:
+                df_gastos_novo = adicionar_categoria(df_gastos, nova_categoria, valores)
+                if ano_selecionado == '2026':
+                    st.session_state.dados_2026_gastos = df_gastos_novo
+                else:
+                    st.session_state.dados_2027_gastos = df_gastos_novo
+                st.success(f"✅ Categoria '{nova_categoria}' adicionada!")
+                st.rerun()
+        
+        st.divider()
+        st.write("### Remover Categoria")
+        
+        categorias = df_gastos['Categoria'].tolist()
+        categoria_remover = st.selectbox("Selecione a categoria para remover", categorias)
+        
+        if st.button("❌ Remover Categoria", use_container_width=True):
+            if categoria_remover:
+                df_gastos_novo = remover_categoria(df_gastos, categoria_remover)
+                if ano_selecionado == '2026':
+                    st.session_state.dados_2026_gastos = df_gastos_novo
+                else:
+                    st.session_state.dados_2027_gastos = df_gastos_novo
+                st.success(f"✅ Categoria '{categoria_remover}' removida!")
+                st.rerun()
+
+# ============================================
+# VISÃO GERAL
+# ============================================
+elif tipo_visao == 'Visão Geral':
     col1, col2 = st.columns(2)
     
     with col1:
@@ -306,14 +366,25 @@ if tipo_visao == 'Visão Geral':
         df_plot = pd.DataFrame({
             'Mês': meses,
             'Gastos': totais_gastos,
-            'Ganhos': totais_ganhos
+            'Ganhos': totais_ganhos,
+            'Saldo': saldo_mensal
         })
         
-        st.line_chart(df_plot.set_index('Mês'), use_container_width=True)
+        st.line_chart(df_plot.set_index('Mês')[['Gastos', 'Ganhos']], use_container_width=True)
         
-        st.subheader("💰 Saldo Mensal")
+        st.subheader("💰 Saldo Mensal (Ganhos - Gastos)")
         df_saldo = pd.DataFrame({'Mês': meses, 'Saldo': saldo_mensal})
         st.bar_chart(df_saldo.set_index('Mês'), use_container_width=True)
+        
+        # Mostrar valores do saldo
+        st.write("### Detalhamento do Saldo Mensal")
+        saldo_df = pd.DataFrame({
+            'Mês': meses,
+            'Ganhos': [f"R$ {g:,.2f}" for g in totais_ganhos],
+            'Gastos': [f"R$ {g:,.2f}" for g in totais_gastos],
+            'Saldo': [f"R$ {s:,.2f}" for s in saldo_mensal]
+        })
+        st.dataframe(saldo_df, use_container_width=True, hide_index=True)
     
     with col2:
         st.subheader("🎯 Top 10 Gastos")
@@ -334,10 +405,8 @@ if tipo_visao == 'Visão Geral':
     if not dados_long.empty:
         gastos_cat = dados_long.groupby('Categoria')['Valor'].sum().sort_values(ascending=False)
         
-        # Criar um gráfico de barras horizontal simples
         st.bar_chart(pd.DataFrame(gastos_cat.head(10)), use_container_width=True)
         
-        # Mostrar porcentagens
         st.subheader("📊 Percentual por Categoria")
         total = gastos_cat.sum()
         for cat, valor in gastos_cat.head(8).items():
@@ -358,13 +427,11 @@ else:
         df_filtrado = df_gastos[df_gastos['Categoria'].isin(cats_selecionadas)]
         
         st.subheader("📊 Comparativo Mensal")
-        # Transpor para melhor visualização
         df_plot = df_filtrado.set_index('Categoria').T
         st.area_chart(df_plot, use_container_width=True)
     
     st.subheader("📑 Tabela Completa de Gastos")
     
-    # Formatar para exibição
     df_display = df_gastos.copy()
     for mes in meses:
         df_display[mes] = df_display[mes].apply(lambda x: f"R$ {x:,.2f}" if pd.notna(x) else "-")
@@ -376,12 +443,26 @@ else:
     for mes in meses:
         df_ganhos_display[mes] = df_ganhos_display[mes].apply(lambda x: f"R$ {x:,.2f}" if pd.notna(x) else "-")
     st.dataframe(df_ganhos_display, use_container_width=True, hide_index=True)
+    
+    st.subheader("📊 Resumo Mensal")
+    resumo_df = pd.DataFrame({
+        'Mês': meses,
+        'Total Gastos': [f"R$ {g:,.2f}" for g in totais_gastos],
+        'Total Ganhos': [f"R$ {g:,.2f}" for g in totais_ganhos],
+        'Saldo do Mês': [f"R$ {s:,.2f}" for s in saldo_mensal]
+    })
+    st.dataframe(resumo_df, use_container_width=True, hide_index=True)
 
 # ============================================
 # INSIGHTS
 # ============================================
 st.sidebar.markdown("---")
 st.sidebar.subheader("📌 Insights")
+
+# Dados atualizados após edições
+totais_gastos_atualizados = calcular_totais(df_gastos)
+totais_ganhos_atualizados = calcular_totais(df_ganhos)
+saldo_mensal_atualizado = [ganhos - gastos for ganhos, gastos in zip(totais_ganhos_atualizados, totais_gastos_atualizados)]
 
 # Maior gasto
 dados_long = preparar_dados_long(df_gastos)
@@ -393,6 +474,16 @@ if not dados_long.empty:
 top_cat = top_gastos(df_gastos, 1)
 if not top_cat.empty:
     st.sidebar.warning(f"💰 Categoria que mais gasta:\n{top_cat.index[0]}\nR$ {top_cat.values[0]:,.2f}")
+
+# Mês com maior saldo
+saldo_positivo = [(meses[i], saldo_mensal_atualizado[i]) for i in range(len(meses))]
+melhor_mes = max(saldo_positivo, key=lambda x: x[1])
+st.sidebar.success(f"📈 Melhor mês: {melhor_mes[0]}\nR$ {melhor_mes[1]:,.2f}")
+
+# Mês com pior saldo
+pior_mes = min(saldo_positivo, key=lambda x: x[1])
+if pior_mes[1] < 0:
+    st.sidebar.error(f"⚠️ Pior mês: {pior_mes[0]}\nR$ {pior_mes[1]:,.2f}")
 
 if saldo_anual < 0:
     st.sidebar.error("⚠️ ALERTA: Saldo anual negativo!")
