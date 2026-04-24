@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -76,11 +75,10 @@ if not st.session_state["authenticated"]:
 # INICIALIZAR SESSION STATE PARA DADOS
 # ============================================
 if 'dados_2026_gastos' not in st.session_state:
-    # Dados padrão 2026
     st.session_state.dados_2026_gastos = pd.DataFrame({
         'Categoria': ['Pensão', 'Aluguel', 'Energia', 'Cartão Itaú', 'Seguro', 
                       'Cartão Samsung', 'Cartão mercado pago', 'Gasolina', 'Outros',
-                      'Estudos', 'Cartão Nubank', 'Cartão Lethicia', 'Empréstimo Bruno',
+                      'Estudos Puc', 'Cartão Nubank', 'Cartão Lethicia', 'Empréstimo Bruno',
                       'Empréstimo PAN', 'Empréstimo PIC', 'Internet'],
         'Janeiro': [1621, 450, 350, 580, 500, 460, 0, 400, 550, 360, 250, 500, 250, 746, 0, 200],
         'Fevereiro': [1621, 450, 535, 410, 0, 522, 490, 300, 450, 0, 258, 564, 350, 746, 890, 200],
@@ -230,7 +228,7 @@ meses = df_gastos.columns[1:].tolist()
 # Calcular totais
 totais_gastos = calcular_totais(df_gastos)
 totais_ganhos = calcular_totais(df_ganhos)
-saldo_mensal = [ganhos - gastos for ganhos, gastos in zip(totais_ganhos, totais_gastos)]  # CORRETO: Ganhos - Gastos
+saldo_mensal = [ganhos - gastos for ganhos, gastos in zip(totais_ganhos, totais_gastos)]
 
 total_ano_gastos = sum(totais_gastos)
 total_ano_ganhos = sum(totais_ganhos)
@@ -268,90 +266,132 @@ st.divider()
 # EDITAR DADOS
 # ============================================
 if tipo_visao == 'Editar Dados':
-    st.subheader("✏️ Editor de Dados")
+    st.subheader("✏️ Editor de Dados - Gastos")
+    st.info("💡 Dica: Clique em qualquer célula para editar o valor. Use os botões abaixo para adicionar ou remover linhas.")
     
-    tab1, tab2, tab3 = st.tabs(["📝 Editar Gastos", "💰 Editar Ganhos", "➕ Adicionar/Remover Categoria"])
+    # Abas para diferentes operações
+    tab1, tab2, tab3, tab4 = st.tabs(["📝 Editar Células", "➕ Adicionar Nova Linha", "❌ Remover Linha", "💰 Editar Ganhos"])
     
     with tab1:
-        st.write("### Editar Gastos")
-        st.info("Clique em uma célula para editar o valor")
+        st.write("### Editar Valores de Gastos")
+        st.caption("Clique duas vezes em uma célula para editar o valor")
         
-        # Fazer cópia editável
+        # Configurar colunas para formatação
+        column_config = {
+            "Categoria": st.column_config.TextColumn("Categoria", required=True, width="medium")
+        }
+        for mes in meses:
+            column_config[mes] = st.column_config.NumberColumn(mes, format="R$ %.2f", step=10.0)
+        
         gastos_edit = st.data_editor(
             df_gastos,
             use_container_width=True,
             hide_index=True,
-            column_config={
-                "Categoria": st.column_config.TextColumn("Categoria", required=True),
-                **{mes: st.column_config.NumberColumn(mes, format="R$ %.2f") for mes in meses}
-            }
+            column_config=column_config,
+            num_rows="dynamic"
         )
         
-        if st.button("💾 Salvar alterações nos Gastos", use_container_width=True):
-            if ano_selecionado == '2026':
-                st.session_state.dados_2026_gastos = gastos_edit
-            else:
-                st.session_state.dados_2027_gastos = gastos_edit
-            st.success("✅ Alterações salvas com sucesso!")
-            st.rerun()
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("💾 Salvar Gastos", use_container_width=True, type="primary"):
+                if ano_selecionado == '2026':
+                    st.session_state.dados_2026_gastos = gastos_edit
+                else:
+                    st.session_state.dados_2027_gastos = gastos_edit
+                st.success("✅ Gastos salvos com sucesso!")
+                st.rerun()
     
     with tab2:
+        st.write("### Adicionar Nova Categoria de Gasto")
+        st.caption("Preencha o nome e os valores mensais para adicionar uma nova linha")
+        
+        with st.form("adicionar_gasto_form"):
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                nova_categoria = st.text_input("Nome da nova categoria*", placeholder="Ex: Netflix, Academia, etc.")
+            with col2:
+                st.write("")
+                st.write("")
+                aplicar_todos = st.checkbox("Aplicar mesmo valor para todos os meses")
+            
+            st.write("### Valores mensais:")
+            
+            if aplicar_todos:
+                valor_unico = st.number_input("Valor para todos os meses", value=0.0, step=50.0, format="%.2f")
+                valores = [valor_unico] * len(meses)
+                st.info(f"Valor R$ {valor_unico:,.2f} será aplicado para todos os meses")
+            else:
+                cols = st.columns(4)
+                valores = []
+                for i, mes in enumerate(meses):
+                    with cols[i % 4]:
+                        valor = st.number_input(f"{mes}", value=0.0, step=50.0, format="%.2f", key=f"novo_{mes}")
+                        valores.append(valor)
+            
+            st.markdown("---")
+            col1, col2, col3 = st.columns([1, 1, 2])
+            with col1:
+                submitted = st.form_submit_button("➕ Adicionar Categoria", use_container_width=True, type="primary")
+            
+            if submitted:
+                if nova_categoria:
+                    if nova_categoria not in df_gastos['Categoria'].values:
+                        df_gastos_novo = adicionar_categoria(df_gastos, nova_categoria, valores)
+                        if ano_selecionado == '2026':
+                            st.session_state.dados_2026_gastos = df_gastos_novo
+                        else:
+                            st.session_state.dados_2027_gastos = df_gastos_novo
+                        st.success(f"✅ Categoria '{nova_categoria}' adicionada com sucesso!")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Categoria '{nova_categoria}' já existe!")
+                else:
+                    st.error("❌ Por favor, digite o nome da categoria!")
+    
+    with tab3:
+        st.write("### Remover Categoria de Gasto")
+        st.caption("Selecione a categoria que deseja remover")
+        
+        categorias = df_gastos['Categoria'].tolist()
+        categoria_remover = st.selectbox("Selecione a categoria para remover", categorias)
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("❌ Remover Categoria", use_container_width=True):
+                if categoria_remover:
+                    df_gastos_novo = remover_categoria(df_gastos, categoria_remover)
+                    if ano_selecionado == '2026':
+                        st.session_state.dados_2026_gastos = df_gastos_novo
+                    else:
+                        st.session_state.dados_2027_gastos = df_gastos_novo
+                    st.success(f"✅ Categoria '{categoria_remover}' removida com sucesso!")
+                    st.rerun()
+    
+    with tab4:
         st.write("### Editar Ganhos")
+        
+        column_config_ganhos = {
+            "Categoria": st.column_config.TextColumn("Categoria", required=True, width="medium")
+        }
+        for mes in meses:
+            column_config_ganhos[mes] = st.column_config.NumberColumn(mes, format="R$ %.2f", step=100.0)
         
         ganhos_edit = st.data_editor(
             df_ganhos,
             use_container_width=True,
             hide_index=True,
-            column_config={
-                "Categoria": st.column_config.TextColumn("Categoria", required=True),
-                **{mes: st.column_config.NumberColumn(mes, format="R$ %.2f") for mes in meses}
-            }
+            column_config=column_config_ganhos,
+            num_rows="dynamic"
         )
         
-        if st.button("💾 Salvar alterações nos Ganhos", use_container_width=True):
-            if ano_selecionado == '2026':
-                st.session_state.dados_2026_ganhos = ganhos_edit
-            else:
-                st.session_state.dados_2027_ganhos = ganhos_edit
-            st.success("✅ Alterações salvas com sucesso!")
-            st.rerun()
-    
-    with tab3:
-        st.write("### Adicionar Nova Categoria de Gasto")
-        
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([1, 4])
         with col1:
-            nova_categoria = st.text_input("Nome da nova categoria")
-        with col2:
-            valores = []
-            for mes in meses:
-                valor = st.number_input(f"Valor para {mes}", value=0.0, step=100.0)
-                valores.append(valor)
-        
-        if st.button("➕ Adicionar Categoria", use_container_width=True):
-            if nova_categoria:
-                df_gastos_novo = adicionar_categoria(df_gastos, nova_categoria, valores)
+            if st.button("💾 Salvar Ganhos", use_container_width=True, type="primary"):
                 if ano_selecionado == '2026':
-                    st.session_state.dados_2026_gastos = df_gastos_novo
+                    st.session_state.dados_2026_ganhos = ganhos_edit
                 else:
-                    st.session_state.dados_2027_gastos = df_gastos_novo
-                st.success(f"✅ Categoria '{nova_categoria}' adicionada!")
-                st.rerun()
-        
-        st.divider()
-        st.write("### Remover Categoria")
-        
-        categorias = df_gastos['Categoria'].tolist()
-        categoria_remover = st.selectbox("Selecione a categoria para remover", categorias)
-        
-        if st.button("❌ Remover Categoria", use_container_width=True):
-            if categoria_remover:
-                df_gastos_novo = remover_categoria(df_gastos, categoria_remover)
-                if ano_selecionado == '2026':
-                    st.session_state.dados_2026_gastos = df_gastos_novo
-                else:
-                    st.session_state.dados_2027_gastos = df_gastos_novo
-                st.success(f"✅ Categoria '{categoria_remover}' removida!")
+                    st.session_state.dados_2027_ganhos = ganhos_edit
+                st.success("✅ Ganhos salvos com sucesso!")
                 st.rerun()
 
 # ============================================
@@ -376,7 +416,6 @@ elif tipo_visao == 'Visão Geral':
         df_saldo = pd.DataFrame({'Mês': meses, 'Saldo': saldo_mensal})
         st.bar_chart(df_saldo.set_index('Mês'), use_container_width=True)
         
-        # Mostrar valores do saldo
         st.write("### Detalhamento do Saldo Mensal")
         saldo_df = pd.DataFrame({
             'Mês': meses,
@@ -476,14 +515,15 @@ if not top_cat.empty:
     st.sidebar.warning(f"💰 Categoria que mais gasta:\n{top_cat.index[0]}\nR$ {top_cat.values[0]:,.2f}")
 
 # Mês com maior saldo
-saldo_positivo = [(meses[i], saldo_mensal_atualizado[i]) for i in range(len(meses))]
-melhor_mes = max(saldo_positivo, key=lambda x: x[1])
-st.sidebar.success(f"📈 Melhor mês: {melhor_mes[0]}\nR$ {melhor_mes[1]:,.2f}")
+if saldo_mensal_atualizado:
+    saldo_positivo = [(meses[i], saldo_mensal_atualizado[i]) for i in range(len(meses))]
+    melhor_mes = max(saldo_positivo, key=lambda x: x[1])
+    st.sidebar.success(f"📈 Melhor mês: {melhor_mes[0]}\nR$ {melhor_mes[1]:,.2f}")
 
-# Mês com pior saldo
-pior_mes = min(saldo_positivo, key=lambda x: x[1])
-if pior_mes[1] < 0:
-    st.sidebar.error(f"⚠️ Pior mês: {pior_mes[0]}\nR$ {pior_mes[1]:,.2f}")
+    # Mês com pior saldo
+    pior_mes = min(saldo_positivo, key=lambda x: x[1])
+    if pior_mes[1] < 0:
+        st.sidebar.error(f"⚠️ Pior mês: {pior_mes[0]}\nR$ {pior_mes[1]:,.2f}")
 
 if saldo_anual < 0:
     st.sidebar.error("⚠️ ALERTA: Saldo anual negativo!")
