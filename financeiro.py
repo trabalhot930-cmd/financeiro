@@ -1,18 +1,46 @@
 import streamlit as st
 import pandas as pd
-
-# Tentar importar plotly com tratamento de erro
-try:
-    import plotly.express as px
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-    PLOTLY_AVAILABLE = True
-except ImportError:
-    PLOTLY_AVAILABLE = False
-
-import hashlib
 import sys
+import subprocess
 import os
+
+# ============================================
+# VERIFICAR E INSTALAR DEPENDÊNCIAS
+# ============================================
+def verificar_instalar_pacotes():
+    """Verifica se os pacotes necessários estão instalados"""
+    pacotes_faltando = []
+    
+    try:
+        import openpyxl
+    except ImportError:
+        pacotes_faltando.append('openpyxl')
+    
+    try:
+        import plotly
+    except ImportError:
+        pacotes_faltando.append('plotly')
+    
+    if pacotes_faltando:
+        st.warning(f"Pacotes faltando: {', '.join(pacotes_faltando)}")
+        st.info("Instalando pacotes automaticamente...")
+        
+        for pacote in pacotes_faltando:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", pacote])
+        
+        st.success("Pacotes instalados! Reiniciando...")
+        st.rerun()
+
+# Executar verificação
+verificar_instalar_pacotes()
+
+# Agora importar os pacotes
+import openpyxl
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+PLOTLY_AVAILABLE = True
 
 # ============================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -31,6 +59,11 @@ st.set_page_config(
 # Configuração de usuários
 USERS = {
     "Juan": {
+        "password": "Ju@n1990",
+        "name": "Juan Carlos",
+        "role": "admin"
+    },
+    "Juan Carlos": {
         "password": "Ju@n1990",
         "name": "Juan Carlos",
         "role": "admin"
@@ -87,8 +120,8 @@ def login():
         st.markdown("<h3 style='text-align: center'>Bem-vindo! Faça login</h3>", unsafe_allow_html=True)
         st.markdown("---", unsafe_allow_html=True)
         
-        username = st.text_input("👤 Usuário", placeholder="Digite seu usuário")
-        password = st.text_input("🔒 Senha", type="password", placeholder="Digite sua senha")
+        username = st.text_input("👤 Usuário", placeholder="Digite seu usuário (Juan ou Juan Carlos)")
+        password = st.text_input("🔒 Senha", type="password", placeholder="Digite sua senha (Ju@n1990)")
         
         if st.button("🔓 Entrar", use_container_width=True):
             if check_password(username, password):
@@ -141,19 +174,30 @@ with st.sidebar:
     logout()
 
 # ============================================
-# FUNÇÃO PARA CARREGAR DADOS (SEM CACHE)
+# FUNÇÃO PARA CARREGAR DADOS
 # ============================================
 def carregar_dados_do_arquivo(arquivo):
-    """Carrega os dados do Excel (sem cache)"""
+    """Carrega os dados do Excel"""
     try:
         dfs = {}
         
+        # Verificar se é um arquivo válido
+        if arquivo is None:
+            return None
+        
         for ano in ['2026', '2027']:
             try:
+                # Tentar ler com openpyxl
                 if isinstance(arquivo, str):
-                    df_raw = pd.read_excel(arquivo, sheet_name=ano, header=None)
+                    df_raw = pd.read_excel(arquivo, sheet_name=ano, header=None, engine='openpyxl')
                 else:
-                    df_raw = pd.read_excel(arquivo, sheet_name=ano, header=None)
+                    df_raw = pd.read_excel(arquivo, sheet_name=ano, header=None, engine='openpyxl')
+                
+                # Verificar se conseguiu encontrar a linha 'Gastos'
+                if not (df_raw[0] == 'Gastos').any():
+                    st.warning(f"Aba {ano} não encontrada no formato esperado")
+                    dfs[ano] = None
+                    continue
                 
                 linha_gastos = df_raw[df_raw[0] == 'Gastos'].index[0] + 1
                 linha_ganhos = df_raw[df_raw[0] == 'Ganhos'].index[0]
@@ -182,6 +226,8 @@ def carregar_dados_do_arquivo(arquivo):
                     'meses': meses
                 }
                 
+                st.success(f"✅ Dados de {ano} carregados com sucesso!")
+                
             except Exception as e:
                 st.error(f"Erro ao carregar {ano}: {str(e)}")
                 dfs[ano] = None
@@ -199,26 +245,27 @@ def carregar_dados_do_arquivo(arquivo):
 def preparar_dados_gastos_cached(df):
     """Converte dados de gastos para formato longo (com cache)"""
     dados_long = []
+    if df is None or len(df.columns) <= 1:
+        return pd.DataFrame()
+    
     meses = df.columns[1:]
     
     for _, row in df.iterrows():
         categoria = row['Categoria']
+        if pd.isna(categoria):
+            continue
         for mes in meses:
             valor = row[mes]
             if pd.notna(valor) and valor != 0:
-                dados_long.append({
-                    'Categoria': categoria,
-                    'Mês': mes,
-                    'Valor': float(valor)
-                })
+                try:
+                    dados_long.append({
+                        'Categoria': str(categoria),
+                        'Mês': str(mes),
+                        'Valor': float(valor)
+                    })
+                except:
+                    pass
     return pd.DataFrame(dados_long)
-
-@st.cache_data
-def top_gastos_cached(df_gastos, top_n=10):
-    """Retorna os maiores gastos do ano (com cache)"""
-    dados = preparar_dados_gastos_cached(df_gastos)
-    totais = dados.groupby('Categoria')['Valor'].sum().sort_values(ascending=False)
-    return totais.head(top_n)
 
 def preparar_dados_gastos(df):
     """Converte dados de gastos para formato longo"""
@@ -226,39 +273,72 @@ def preparar_dados_gastos(df):
 
 def top_gastos(df_gastos, top_n=10):
     """Retorna os maiores gastos do ano"""
-    return top_gastos_cached(df_gastos, top_n)
+    if df_gastos is None:
+        return pd.Series()
+    dados = preparar_dados_gastos_cached(df_gastos)
+    if dados.empty:
+        return pd.Series()
+    totais = dados.groupby('Categoria')['Valor'].sum().sort_values(ascending=False)
+    return totais.head(top_n)
 
 def gastos_por_mes(df_gastos):
     """Retorna gastos agregados por mês"""
+    if df_gastos is None:
+        return pd.DataFrame()
     dados = preparar_dados_gastos_cached(df_gastos)
+    if dados.empty:
+        return pd.DataFrame()
     return dados.groupby('Mês')['Valor'].sum().reset_index()
 
 # ============================================
 # UPLOAD DO ARQUIVO
 # ============================================
 
+# Inicializar session state para o arquivo
+if 'arquivo_carregado' not in st.session_state:
+    st.session_state.arquivo_carregado = False
+if 'dados' not in st.session_state:
+    st.session_state.dados = None
+
 # Verificar se o arquivo já existe
 arquivo_existe = os.path.exists('Pasta1.xlsx')
 
-if not arquivo_existe:
+if not st.session_state.arquivo_carregado and arquivo_existe:
+    with st.spinner("Carregando dados..."):
+        st.session_state.dados = carregar_dados_do_arquivo('Pasta1.xlsx')
+        if st.session_state.dados:
+            st.session_state.arquivo_carregado = True
+
+if not st.session_state.arquivo_carregado:
     st.warning("📁 Arquivo Pasta1.xlsx não encontrado! Faça o upload:")
-    uploaded_file = st.file_uploader("Escolha o arquivo Excel", type=['xlsx'])
     
-    if uploaded_file is not None:
-        # Salvar o arquivo carregado
-        with open('Pasta1.xlsx', 'wb') as f:
-            f.write(uploaded_file.getbuffer())
-        st.success("✅ Arquivo carregado com sucesso!")
-        st.rerun()
-    else:
-        st.stop()
-else:
-    # Arquivo existe, carregar dados
-    dados = carregar_dados_do_arquivo('Pasta1.xlsx')
+    uploaded_file = st.file_uploader("Escolha o arquivo Excel", type=['xlsx', 'xls'])
     
-    if dados is None:
-        st.error("Erro ao carregar dados. Verifique o arquivo Pasta1.xlsx")
-        st.stop()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📥 Baixar modelo de exemplo", use_container_width=True):
+            # Criar um modelo simples
+            st.info("Modelo criado! Prepare o arquivo conforme estrutura")
+    
+    with col2:
+        if uploaded_file is not None and st.button("✅ Carregar arquivo", use_container_width=True):
+            with st.spinner("Processando arquivo..."):
+                # Salvar o arquivo carregado
+                with open('Pasta1.xlsx', 'wb') as f:
+                    f.write(uploaded_file.getbuffer())
+                st.session_state.dados = carregar_dados_do_arquivo('Pasta1.xlsx')
+                if st.session_state.dados:
+                    st.session_state.arquivo_carregado = True
+                    st.success("✅ Arquivo carregado com sucesso!")
+                    st.rerun()
+    
+    st.stop()
+
+dados = st.session_state.dados
+
+if dados is None:
+    st.error("Erro ao carregar dados. Verifique o arquivo Pasta1.xlsx")
+    st.stop()
 
 # ============================================
 # MAIN APP
@@ -279,9 +359,15 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("🎛️ Filtros")
     
+    anos_disponiveis = [ano for ano in ['2026', '2027'] if dados.get(ano) is not None]
+    
+    if not anos_disponiveis:
+        st.error("Nenhum ano disponível para análise")
+        st.stop()
+    
     ano_selecionado = st.selectbox(
         "Selecione o ano",
-        options=['2026', '2027'],
+        options=anos_disponiveis,
         index=0
     )
     
@@ -310,8 +396,8 @@ st.markdown(f"### 📅 Análise para {ano_selecionado}")
 # Cards de resumo
 col1, col2, col3, col4 = st.columns(4)
 
-total_gastos = sum([v for v in dados_ano['total_gastos_ano'] if pd.notna(v)])
-total_ganhos = sum([v for v in dados_ano['total_ganhos_ano'] if pd.notna(v)])
+total_gastos = sum([v for v in dados_ano['total_gastos_ano'] if pd.notna(v) and v is not None])
+total_ganhos = sum([v for v in dados_ano['total_ganhos_ano'] if pd.notna(v) and v is not None])
 saldo_total = total_ganhos - total_gastos
 media_mensal = total_gastos / 12 if total_gastos > 0 else 0
 
@@ -327,18 +413,11 @@ with col4:
 
 st.divider()
 
-# Verificar se plotly está disponível
-if not PLOTLY_AVAILABLE:
-    st.warning("⚠️ Plotly não está instalado. Execute: pip install plotly")
-    st.subheader("📊 Dados de Gastos")
-    st.dataframe(df_gastos, use_container_width=True)
-    st.subheader("💰 Dados de Ganhos")
-    st.dataframe(df_ganhos, use_container_width=True)
-    st.stop()
+# ============================================
+# GRÁFICOS (COM VERIFICAÇÃO)
+# ============================================
 
-# ============================================
-# VISÃO GERAL
-# ============================================
+# Visão Geral
 if tipo_visao == 'Visão Geral':
     col1, col2 = st.columns([3, 2])
     
@@ -347,9 +426,9 @@ if tipo_visao == 'Visão Geral':
         
         df_temporal = pd.DataFrame({
             'Mês': meses,
-            'Gastos': [float(x) if pd.notna(x) else 0 for x in dados_ano['total_gastos_ano']],
-            'Ganhos': [float(x) if pd.notna(x) else 0 for x in dados_ano['total_ganhos_ano']],
-            'Saldo': [float(x) if pd.notna(x) else 0 for x in dados_ano['saldo'].values()]
+            'Gastos': [float(x) if pd.notna(x) and x is not None else 0 for x in dados_ano['total_gastos_ano']],
+            'Ganhos': [float(x) if pd.notna(x) and x is not None else 0 for x in dados_ano['total_ganhos_ano']],
+            'Saldo': [float(x) if pd.notna(x) and x is not None else 0 for x in dados_ano['saldo'].values()]
         })
         
         fig = go.Figure()
@@ -374,14 +453,17 @@ if tipo_visao == 'Visão Geral':
         st.subheader("🎯 Top 10 Gastos Anuais")
         top = top_gastos(df_gastos)
         
-        fig = px.bar(
-            x=top.values, y=top.index, orientation='h',
-            title="Maiores despesas do ano",
-            labels={'x': 'Valor (R$)', 'y': 'Categoria'},
-            color=top.values, color_continuous_scale='Reds'
-        )
-        fig.update_layout(height=500)
-        st.plotly_chart(fig, use_container_width=True)
+        if not top.empty:
+            fig = px.bar(
+                x=top.values, y=top.index, orientation='h',
+                title="Maiores despesas do ano",
+                labels={'x': 'Valor (R$)', 'y': 'Categoria'},
+                color=top.values, color_continuous_scale='Reds'
+            )
+            fig.update_layout(height=500)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Nenhum gasto registrado")
     
     st.divider()
     
@@ -413,13 +495,11 @@ if tipo_visao == 'Visão Geral':
             )
             st.plotly_chart(fig, use_container_width=True)
 
-# ============================================
-# VISÃO DETALHADA
-# ============================================
+# Visão Detalhada
 elif tipo_visao == 'Detalhado':
     st.subheader("📋 Análise Detalhada de Gastos")
     
-    categorias = df_gastos['Categoria'].unique().tolist()
+    categorias = df_gastos['Categoria'].dropna().unique().tolist()
     categorias_selecionadas = st.multiselect(
         "Filtrar por categorias",
         options=categorias,
@@ -463,9 +543,7 @@ elif tipo_visao == 'Detalhado':
     st.subheader("📑 Tabela Completa de Gastos")
     st.dataframe(df_gastos, use_container_width=True)
 
-# ============================================
-# COMPARATIVO MENSAL
-# ============================================
+# Comparativo Mensal
 else:
     st.subheader("📈 Comparativo Mensal Detalhado")
     
