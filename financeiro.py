@@ -141,30 +141,11 @@ with st.sidebar:
     logout()
 
 # ============================================
-# CARREGAR DADOS
+# FUNÇÃO PARA CARREGAR DADOS (SEM CACHE)
 # ============================================
-@st.cache_data
-def carregar_dados():
-    """Carrega os dados do Excel"""
+def carregar_dados_do_arquivo(arquivo):
+    """Carrega os dados do Excel (sem cache)"""
     try:
-        possiveis_caminhos = ['Pasta1.xlsx', 'data/Pasta1.xlsx', '../Pasta1.xlsx']
-        arquivo = None
-        
-        for caminho in possiveis_caminhos:
-            if os.path.exists(caminho):
-                arquivo = caminho
-                break
-        
-        if arquivo is None:
-            st.error("Arquivo Pasta1.xlsx nao encontrado!")
-            st.info("Por favor, faca upload do arquivo Pasta1.xlsx usando o botao abaixo:")
-            
-            uploaded_file = st.file_uploader("Escolha o arquivo Excel", type=['xlsx'])
-            if uploaded_file is not None:
-                arquivo = uploaded_file
-            else:
-                return None
-        
         dfs = {}
         
         for ano in ['2026', '2027']:
@@ -212,10 +193,11 @@ def carregar_dados():
         return None
 
 # ============================================
-# FUNÇÕES DE ANÁLISE
+# FUNÇÕES DE ANÁLISE (COM CACHE APENAS PARA PROCESSAMENTO)
 # ============================================
-def preparar_dados_gastos(df):
-    """Converte dados de gastos para formato longo"""
+@st.cache_data
+def preparar_dados_gastos_cached(df):
+    """Converte dados de gastos para formato longo (com cache)"""
     dados_long = []
     meses = df.columns[1:]
     
@@ -231,16 +213,52 @@ def preparar_dados_gastos(df):
                 })
     return pd.DataFrame(dados_long)
 
-def top_gastos(df_gastos, top_n=10):
-    """Retorna os maiores gastos do ano"""
-    dados = preparar_dados_gastos(df_gastos)
+@st.cache_data
+def top_gastos_cached(df_gastos, top_n=10):
+    """Retorna os maiores gastos do ano (com cache)"""
+    dados = preparar_dados_gastos_cached(df_gastos)
     totais = dados.groupby('Categoria')['Valor'].sum().sort_values(ascending=False)
     return totais.head(top_n)
 
+def preparar_dados_gastos(df):
+    """Converte dados de gastos para formato longo"""
+    return preparar_dados_gastos_cached(df)
+
+def top_gastos(df_gastos, top_n=10):
+    """Retorna os maiores gastos do ano"""
+    return top_gastos_cached(df_gastos, top_n)
+
 def gastos_por_mes(df_gastos):
     """Retorna gastos agregados por mês"""
-    dados = preparar_dados_gastos(df_gastos)
+    dados = preparar_dados_gastos_cached(df_gastos)
     return dados.groupby('Mês')['Valor'].sum().reset_index()
+
+# ============================================
+# UPLOAD DO ARQUIVO
+# ============================================
+
+# Verificar se o arquivo já existe
+arquivo_existe = os.path.exists('Pasta1.xlsx')
+
+if not arquivo_existe:
+    st.warning("📁 Arquivo Pasta1.xlsx não encontrado! Faça o upload:")
+    uploaded_file = st.file_uploader("Escolha o arquivo Excel", type=['xlsx'])
+    
+    if uploaded_file is not None:
+        # Salvar o arquivo carregado
+        with open('Pasta1.xlsx', 'wb') as f:
+            f.write(uploaded_file.getbuffer())
+        st.success("✅ Arquivo carregado com sucesso!")
+        st.rerun()
+    else:
+        st.stop()
+else:
+    # Arquivo existe, carregar dados
+    dados = carregar_dados_do_arquivo('Pasta1.xlsx')
+    
+    if dados is None:
+        st.error("Erro ao carregar dados. Verifique o arquivo Pasta1.xlsx")
+        st.stop()
 
 # ============================================
 # MAIN APP
@@ -251,7 +269,7 @@ st.balloons()
 st.markdown(f"""
 <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             padding: 20px; border-radius: 10px; margin-bottom: 20px; color: white;'>
-    <h2 style='margin: 0;'>Ola, {st.session_state.get('user_name', 'Usuario')}! 👋</h2>
+    <h2 style='margin: 0;'>Olá, {st.session_state.get('user_name', 'Usuário')}! 👋</h2>
     <p style='margin: 5px 0 0 0;'>Bem-vindo ao seu controle financeiro</p>
 </div>
 """, unsafe_allow_html=True)
@@ -259,7 +277,7 @@ st.markdown(f"""
 # Filtros no sidebar
 with st.sidebar:
     st.markdown("---")
-    st.subheader("Filtros")
+    st.subheader("🎛️ Filtros")
     
     ano_selecionado = st.selectbox(
         "Selecione o ano",
@@ -268,19 +286,17 @@ with st.sidebar:
     )
     
     tipo_visao = st.radio(
-        "Tipo de visao",
-        options=['Visao Geral', 'Detalhado', 'Comparativo Mensal'],
+        "Tipo de visão",
+        options=['Visão Geral', 'Detalhado', 'Comparativo Mensal'],
         index=0
     )
 
-# Carregar dados
-dados = carregar_dados()
+dados_ano = dados[ano_selecionado]
 
-if dados is None or dados[ano_selecionado] is None:
-    st.error("Erro ao carregar dados. Verifique o arquivo Pasta1.xlsx")
+if dados_ano is None:
+    st.error(f"Dados não disponíveis para {ano_selecionado}")
     st.stop()
 
-dados_ano = dados[ano_selecionado]
 df_gastos = dados_ano['gastos']
 df_ganhos = dados_ano['ganhos']
 meses = dados_ano['meses']
@@ -288,8 +304,8 @@ meses = dados_ano['meses']
 # ============================================
 # HEADER PRINCIPAL
 # ============================================
-st.title("Controle Financeiro Inteligente")
-st.markdown(f"### Analise para {ano_selecionado}")
+st.title("💰 Controle Financeiro Inteligente")
+st.markdown(f"### 📅 Análise para {ano_selecionado}")
 
 # Cards de resumo
 col1, col2, col3, col4 = st.columns(4)
@@ -300,34 +316,34 @@ saldo_total = total_ganhos - total_gastos
 media_mensal = total_gastos / 12 if total_gastos > 0 else 0
 
 with col1:
-    st.metric("Total de Ganhos", f"R$ {total_ganhos:,.2f}")
+    st.metric("💰 Total de Ganhos", f"R$ {total_ganhos:,.2f}")
 with col2:
-    st.metric("Total de Gastos", f"R$ {total_gastos:,.2f}")
+    st.metric("💸 Total de Gastos", f"R$ {total_gastos:,.2f}")
 with col3:
-    st.metric("Saldo Anual", f"R$ {saldo_total:,.2f}", 
+    st.metric("📊 Saldo Anual", f"R$ {saldo_total:,.2f}", 
               delta="Positivo" if saldo_total > 0 else "Negativo")
 with col4:
-    st.metric("Media Mensal", f"R$ {media_mensal:,.2f}")
+    st.metric("📅 Média Mensal", f"R$ {media_mensal:,.2f}")
 
 st.divider()
 
-# Verificar se plotly esta disponivel
+# Verificar se plotly está disponível
 if not PLOTLY_AVAILABLE:
-    st.warning("Plotly nao esta instalado. Execute: pip install plotly")
-    st.subheader("Dados de Gastos")
+    st.warning("⚠️ Plotly não está instalado. Execute: pip install plotly")
+    st.subheader("📊 Dados de Gastos")
     st.dataframe(df_gastos, use_container_width=True)
-    st.subheader("Dados de Ganhos")
+    st.subheader("💰 Dados de Ganhos")
     st.dataframe(df_ganhos, use_container_width=True)
     st.stop()
 
 # ============================================
 # VISÃO GERAL
 # ============================================
-if tipo_visao == 'Visao Geral':
+if tipo_visao == 'Visão Geral':
     col1, col2 = st.columns([3, 2])
     
     with col1:
-        st.subheader("Evolucao Mensal")
+        st.subheader("📊 Evolução Mensal")
         
         df_temporal = pd.DataFrame({
             'Mês': meses,
@@ -347,7 +363,7 @@ if tipo_visao == 'Visao Geral':
         
         fig.update_layout(
             title="Gastos vs Ganhos vs Saldo",
-            xaxis_title="Mes",
+            xaxis_title="Mês",
             yaxis_title="Valor (R$)",
             hovermode='x unified',
             height=500
@@ -355,7 +371,7 @@ if tipo_visao == 'Visao Geral':
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
-        st.subheader("Top 10 Gastos Anuais")
+        st.subheader("🎯 Top 10 Gastos Anuais")
         top = top_gastos(df_gastos)
         
         fig = px.bar(
@@ -369,7 +385,7 @@ if tipo_visao == 'Visao Geral':
     
     st.divider()
     
-    st.subheader("Distribuicao de Gastos por Categoria")
+    st.subheader("🥧 Distribuição de Gastos por Categoria")
     
     col1, col2 = st.columns(2)
     
@@ -401,7 +417,7 @@ if tipo_visao == 'Visao Geral':
 # VISÃO DETALHADA
 # ============================================
 elif tipo_visao == 'Detalhado':
-    st.subheader("Analise Detalhada de Gastos")
+    st.subheader("📋 Análise Detalhada de Gastos")
     
     categorias = df_gastos['Categoria'].unique().tolist()
     categorias_selecionadas = st.multiselect(
@@ -413,14 +429,14 @@ elif tipo_visao == 'Detalhado':
     if categorias_selecionadas:
         df_filtrado = df_gastos[df_gastos['Categoria'].isin(categorias_selecionadas)]
         
-        st.subheader("Mapa de Calor - Gastos Mensais por Categoria")
+        st.subheader("🔥 Mapa de Calor - Gastos Mensais por Categoria")
         
         matriz_calor = df_filtrado.set_index('Categoria')[meses]
         matriz_calor = matriz_calor.fillna(0)
         
         fig = px.imshow(
             matriz_calor,
-            labels=dict(x="Mes", y="Categoria", color="Valor (R$)"),
+            labels=dict(x="Mês", y="Categoria", color="Valor (R$)"),
             title="Intensidade de gastos ao longo do ano",
             color_continuous_scale='RdYlGn_r',
             aspect="auto",
@@ -429,14 +445,14 @@ elif tipo_visao == 'Detalhado':
         fig.update_layout(height=400)
         st.plotly_chart(fig, use_container_width=True)
         
-        st.subheader("Comparativo Mensal por Categoria")
+        st.subheader("📊 Comparativo Mensal por Categoria")
         
-        df_barras = df_filtrado.melt(id_vars=['Categoria'], var_name='Mes', value_name='Valor')
+        df_barras = df_filtrado.melt(id_vars=['Categoria'], var_name='Mês', value_name='Valor')
         df_barras = df_barras.dropna(subset=['Valor'])
         
         if not df_barras.empty:
             fig = px.bar(
-                df_barras, x='Mes', y='Valor', color='Categoria',
+                df_barras, x='Mês', y='Valor', color='Categoria',
                 title="Gastos por categoria ao longo dos meses",
                 barmode='stack',
                 text_auto='.0f'
@@ -444,14 +460,14 @@ elif tipo_visao == 'Detalhado':
             fig.update_layout(height=500)
             st.plotly_chart(fig, use_container_width=True)
     
-    st.subheader("Tabela Completa de Gastos")
+    st.subheader("📑 Tabela Completa de Gastos")
     st.dataframe(df_gastos, use_container_width=True)
 
 # ============================================
 # COMPARATIVO MENSAL
 # ============================================
 else:
-    st.subheader("Comparativo Mensal Detalhado")
+    st.subheader("📈 Comparativo Mensal Detalhado")
     
     meses_selecionados = st.multiselect(
         "Selecione os meses para comparar",
@@ -490,26 +506,26 @@ else:
 # ============================================
 with st.sidebar:
     st.markdown("---")
-    st.subheader("Insights Rapidos")
+    st.subheader("📌 Insights Rápidos")
     
     gastos_mensais = gastos_por_mes(df_gastos)
     if not gastos_mensais.empty:
         maior_gasto_mes = gastos_mensais.loc[gastos_mensais['Valor'].idxmax()]
-        st.info(f"Mes de maior gasto: {maior_gasto_mes['Mês']}\nR$ {maior_gasto_mes['Valor']:,.2f}")
+        st.info(f"🔥 **Mês de maior gasto:**\n{maior_gasto_mes['Mês']}\nR$ {maior_gasto_mes['Valor']:,.2f}")
     
     top_categorias = top_gastos(df_gastos, 3)
     if not top_categorias.empty:
-        st.warning(f"Top 3 categorias:\n\n1. {top_categorias.index[0]}: R$ {top_categorias.values[0]:,.2f}\n\n2. {top_categorias.index[1]}: R$ {top_categorias.values[1]:,.2f}\n\n3. {top_categorias.index[2]}: R$ {top_categorias.values[2]:,.2f}")
+        st.warning(f"💰 **Top 3 categorias:**\n\n1. {top_categorias.index[0]}: R$ {top_categorias.values[0]:,.2f}\n\n2. {top_categorias.index[1]}: R$ {top_categorias.values[1]:,.2f}\n\n3. {top_categorias.index[2]}: R$ {top_categorias.values[2]:,.2f}")
     
     if saldo_total < 0:
-        st.error("ALERTA: Saldo anual negativo! Revise seus gastos.")
+        st.error("⚠️ **ALERTA:** Saldo anual negativo! Revise seus gastos.")
     elif saldo_total > 0:
-        st.success(f"Bom trabalho! Saldo positivo de R$ {saldo_total:,.2f}")
+        st.success(f"✅ **Bom trabalho!** Saldo positivo de R$ {saldo_total:,.2f}")
 
 # Footer
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: gray; padding: 20px;'>
-    <p>Controle Financeiro Pessoal | Desenvolvido para Juan</p>
+    <p>💰 Controle Financeiro Pessoal | Desenvolvido com ❤️ para Juan</p>
 </div>
 """, unsafe_allow_html=True)
